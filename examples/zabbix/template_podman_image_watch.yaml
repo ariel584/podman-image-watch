@@ -1,0 +1,473 @@
+# SPDX-License-Identifier: GPL-3.0-or-later
+zabbix_export:
+  version: '7.0'
+  template_groups:
+  - uuid: 689f8c5f84d75042a6ba624ed49cebd5
+    name: Templates/Applications
+  templates:
+  - uuid: e13f7b2c8f5958c9b76437cf89478adc
+    template: Podman Image Watch by Zabbix agent
+    name: Podman Image Watch by Zabbix agent
+    description: Read-only Quadlet image updates from an atomic JSON report. GPL-3.0-or-later.
+    groups:
+    - name: Templates/Applications
+    macros:
+    - macro: '{$PIW.REPORT_PATH}'
+      value: /var/lib/podman-image-watch/report.json
+    - macro: '{$PIW.MAX_AGE}'
+      value: '172800'
+      description: Maximum report age in seconds.
+    items:
+    - uuid: 14728066e387542b9557a4c89b0518ee
+      name: 'Image Watch: JSON report'
+      key: vfs.file.contents["{$PIW.REPORT_PATH}"]
+      delay: 5m
+      history: '0'
+      value_type: TEXT
+      trends: '0'
+    - uuid: 61fa54e1e0825a64847ff3ca3660d920
+      name: 'Image Watch: Last scan timestamp'
+      type: DEPENDENT
+      key: piw.timestamp
+      delay: '0'
+      history: 7d
+      value_type: UNSIGNED
+      preprocessing:
+      - type: JSONPATH
+        parameters:
+        - $.scan.timestamp
+      master_item:
+        key: vfs.file.contents["{$PIW.REPORT_PATH}"]
+      units: unixtime
+    - uuid: 287cb504746455c6bfababd91a50883f
+      name: 'Image Watch: Last successful scan timestamp'
+      type: DEPENDENT
+      key: piw.last_success
+      delay: '0'
+      history: 7d
+      value_type: UNSIGNED
+      preprocessing:
+      - type: JSONPATH
+        parameters:
+        - $.scan.last_success_timestamp
+      master_item:
+        key: vfs.file.contents["{$PIW.REPORT_PATH}"]
+      units: unixtime
+    - uuid: 81967763a3295fbfb4bfc2896ea4779a
+      name: 'Image Watch: Scan health'
+      type: DEPENDENT
+      key: piw.health
+      delay: '0'
+      history: 7d
+      value_type: UNSIGNED
+      preprocessing:
+      - type: JSONPATH
+        parameters:
+        - $.scan.health
+      master_item:
+        key: vfs.file.contents["{$PIW.REPORT_PATH}"]
+    - uuid: 647c42c3acf65dadb0d02cd06101eaf9
+      name: 'Image Watch: Total services'
+      type: DEPENDENT
+      key: piw.total
+      delay: '0'
+      history: 7d
+      value_type: UNSIGNED
+      preprocessing:
+      - type: JSONPATH
+        parameters:
+        - $.summary.total_services
+      master_item:
+        key: vfs.file.contents["{$PIW.REPORT_PATH}"]
+    - uuid: bdbf4326fec552fca9c4717de063d9e5
+      name: 'Image Watch: Services requiring attention'
+      type: DEPENDENT
+      key: piw.attention
+      delay: '0'
+      history: 7d
+      value_type: UNSIGNED
+      preprocessing:
+      - type: JSONPATH
+        parameters:
+        - $.summary.attention_services
+      master_item:
+        key: vfs.file.contents["{$PIW.REPORT_PATH}"]
+    - uuid: 479f91008b5450f595c867034e9ee706
+      name: 'Image Watch: Services requiring planning'
+      type: DEPENDENT
+      key: piw.planning
+      delay: '0'
+      history: 7d
+      value_type: UNSIGNED
+      preprocessing:
+      - type: JSONPATH
+        parameters:
+        - $.summary.planning_services
+      master_item:
+        key: vfs.file.contents["{$PIW.REPORT_PATH}"]
+    - uuid: 9c1ea38b1c615ccd90bc9a39988628c2
+      name: 'Image Watch: Services with major updates'
+      type: DEPENDENT
+      key: piw.major
+      delay: '0'
+      history: 7d
+      value_type: UNSIGNED
+      preprocessing:
+      - type: JSONPATH
+        parameters:
+        - $.summary.major_updates
+      master_item:
+        key: vfs.file.contents["{$PIW.REPORT_PATH}"]
+    - uuid: 7562bcbe73f25404bee78b0e5e067eb2
+      name: 'Image Watch: Scan errors'
+      type: DEPENDENT
+      key: piw.errors
+      delay: '0'
+      history: 7d
+      value_type: UNSIGNED
+      preprocessing:
+      - type: JSONPATH
+        parameters:
+        - $.summary.errors
+      master_item:
+        key: vfs.file.contents["{$PIW.REPORT_PATH}"]
+    - uuid: 792c7b10cf145e0da2105d7092c7937d
+      name: 'Image Watch: Unknown results'
+      type: DEPENDENT
+      key: piw.unknown
+      delay: '0'
+      history: 7d
+      value_type: UNSIGNED
+      preprocessing:
+      - type: JSONPATH
+        parameters:
+        - $.summary.unknown
+      master_item:
+        key: vfs.file.contents["{$PIW.REPORT_PATH}"]
+    discovery_rules:
+    - uuid: 2d1c779ddb4654d7ac80c0b08dd94ebb
+      name: 'Image Watch: service discovery'
+      type: DEPENDENT
+      key: piw.discovery
+      delay: '0'
+      lifetime: 30d
+      preprocessing:
+      - type: JSONPATH
+        parameters:
+        - $.services
+      master_item:
+        key: vfs.file.contents["{$PIW.REPORT_PATH}"]
+      lld_macro_paths:
+      - lld_macro: '{#PIW.ID}'
+        path: $.id
+      - lld_macro: '{#PIW.NAME}'
+        path: $.display_name
+      item_prototypes:
+      - uuid: fbffc53d6801561db8b8581c9cf836ba
+        name: '{#PIW.NAME}: service data'
+        type: DEPENDENT
+        key: piw.service["{#PIW.ID}"]
+        delay: '0'
+        history: '0'
+        value_type: TEXT
+        preprocessing:
+        - type: JSONPATH
+          parameters:
+          - $.services[?(@.id == "{#PIW.ID}")].first()
+        - type: JAVASCRIPT
+          parameters:
+          - 'return value === ''null'' ? ''-'' : value;'
+        master_item:
+          key: vfs.file.contents["{$PIW.REPORT_PATH}"]
+        trends: '0'
+      - uuid: 3f2043e88511517f861208f044344de4
+        name: '{#PIW.NAME}: Current version'
+        type: DEPENDENT
+        key: piw.service.current["{#PIW.ID}"]
+        delay: '0'
+        history: 7d
+        value_type: CHAR
+        preprocessing:
+        - type: JSONPATH
+          parameters:
+          - $.current_version
+        - type: JAVASCRIPT
+          parameters:
+          - 'return value === ''null'' ? ''-'' : value;'
+        master_item:
+          key: piw.service["{#PIW.ID}"]
+        trends: '0'
+      - uuid: bb560f80f4945003a03d00505b4bb3cd
+        name: '{#PIW.NAME}: Configured digest'
+        type: DEPENDENT
+        key: piw.service.digest["{#PIW.ID}"]
+        delay: '0'
+        history: 7d
+        value_type: CHAR
+        preprocessing:
+        - type: JSONPATH
+          parameters:
+          - $.configured_digest
+        - type: JAVASCRIPT
+          parameters:
+          - 'return value === ''null'' ? ''-'' : value;'
+        master_item:
+          key: piw.service["{#PIW.ID}"]
+        trends: '0'
+      - uuid: 00002bf7fe525862801623ca40230121
+        name: '{#PIW.NAME}: Latest patch'
+        type: DEPENDENT
+        key: piw.service.patch["{#PIW.ID}"]
+        delay: '0'
+        history: 7d
+        value_type: CHAR
+        preprocessing:
+        - type: JSONPATH
+          parameters:
+          - $.updates.patch
+        - type: JAVASCRIPT
+          parameters:
+          - 'return value === ''null'' ? ''-'' : value;'
+        master_item:
+          key: piw.service["{#PIW.ID}"]
+        trends: '0'
+      - uuid: fbb2947afc815826b370c1a0a32323cc
+        name: '{#PIW.NAME}: Latest minor'
+        type: DEPENDENT
+        key: piw.service.minor["{#PIW.ID}"]
+        delay: '0'
+        history: 7d
+        value_type: CHAR
+        preprocessing:
+        - type: JSONPATH
+          parameters:
+          - $.updates.minor
+        - type: JAVASCRIPT
+          parameters:
+          - 'return value === ''null'' ? ''-'' : value;'
+        master_item:
+          key: piw.service["{#PIW.ID}"]
+        trends: '0'
+      - uuid: 004490bd00d054868823e72b5393a130
+        name: '{#PIW.NAME}: Latest major'
+        type: DEPENDENT
+        key: piw.service.major["{#PIW.ID}"]
+        delay: '0'
+        history: 7d
+        value_type: CHAR
+        preprocessing:
+        - type: JSONPATH
+          parameters:
+          - $.updates.major
+        - type: JAVASCRIPT
+          parameters:
+          - 'return value === ''null'' ? ''-'' : value;'
+        master_item:
+          key: piw.service["{#PIW.ID}"]
+        trends: '0'
+      - uuid: ceb0fcdb2e3c59aeb4fa673648ccd6c7
+        name: '{#PIW.NAME}: Update availability'
+        type: DEPENDENT
+        key: piw.service.update_status["{#PIW.ID}"]
+        delay: '0'
+        history: 7d
+        value_type: CHAR
+        preprocessing:
+        - type: JSONPATH
+          parameters:
+          - $.update_status
+        - type: JAVASCRIPT
+          parameters:
+          - 'return value === ''null'' ? ''-'' : value;'
+        master_item:
+          key: piw.service["{#PIW.ID}"]
+        trends: '0'
+      - uuid: 3f70c82ba00854a582e1c8c6abdae042
+        name: '{#PIW.NAME}: Operational priority'
+        type: DEPENDENT
+        key: piw.service.priority["{#PIW.ID}"]
+        delay: '0'
+        history: 7d
+        value_type: CHAR
+        preprocessing:
+        - type: JSONPATH
+          parameters:
+          - $.priority
+        - type: JAVASCRIPT
+          parameters:
+          - 'return value === ''null'' ? ''-'' : value;'
+        master_item:
+          key: piw.service["{#PIW.ID}"]
+        trends: '0'
+      - uuid: e9d0eba70fe255e0843c294b5adff638
+        name: '{#PIW.NAME}: Registry check status'
+        type: DEPENDENT
+        key: piw.service.check_status["{#PIW.ID}"]
+        delay: '0'
+        history: 7d
+        value_type: CHAR
+        preprocessing:
+        - type: JSONPATH
+          parameters:
+          - $.check_status
+        - type: JAVASCRIPT
+          parameters:
+          - 'return value === ''null'' ? ''-'' : value;'
+        master_item:
+          key: piw.service["{#PIW.ID}"]
+        trends: '0'
+      - uuid: 162e5126c2d85a73b51500257d360034
+        name: '{#PIW.NAME}: Acknowledged'
+        type: DEPENDENT
+        key: piw.service.acknowledged["{#PIW.ID}"]
+        delay: '0'
+        history: 7d
+        value_type: UNSIGNED
+        preprocessing:
+        - type: JSONPATH
+          parameters:
+          - $.acknowledged
+        - type: BOOL_TO_DECIMAL
+          parameters:
+          - ''
+        master_item:
+          key: piw.service["{#PIW.ID}"]
+      - uuid: e4c8884df5d05a7a8d1ee0bd6f5515d2
+        name: '{#PIW.NAME}: Snoozed'
+        type: DEPENDENT
+        key: piw.service.snoozed["{#PIW.ID}"]
+        delay: '0'
+        history: 7d
+        value_type: UNSIGNED
+        preprocessing:
+        - type: JSONPATH
+          parameters:
+          - $.snoozed
+        - type: BOOL_TO_DECIMAL
+          parameters:
+          - ''
+        master_item:
+          key: piw.service["{#PIW.ID}"]
+      - uuid: 70b1308a0c4e54548197a48a4f4bd367
+        name: '{#PIW.NAME}: Maintenance attention'
+        type: DEPENDENT
+        key: piw.service.attention["{#PIW.ID}"]
+        delay: '0'
+        history: 7d
+        value_type: UNSIGNED
+        preprocessing:
+        - type: JSONPATH
+          parameters:
+          - $.metrics.attention
+        master_item:
+          key: piw.service["{#PIW.ID}"]
+      - uuid: 819d6c0a86b35794822e4bb95b584e6d
+        name: '{#PIW.NAME}: Major update planning'
+        type: DEPENDENT
+        key: piw.service.planning["{#PIW.ID}"]
+        delay: '0'
+        history: 7d
+        value_type: UNSIGNED
+        preprocessing:
+        - type: JSONPATH
+          parameters:
+          - $.metrics.planning
+        master_item:
+          key: piw.service["{#PIW.ID}"]
+      - uuid: 5a5d59c555d852b3ac2898ebe5b3365c
+        name: '{#PIW.NAME}: Registry errors'
+        type: DEPENDENT
+        key: piw.service.errors["{#PIW.ID}"]
+        delay: '0'
+        history: 7d
+        value_type: UNSIGNED
+        preprocessing:
+        - type: JSONPATH
+          parameters:
+          - $.metrics.errors
+        master_item:
+          key: piw.service["{#PIW.ID}"]
+      - uuid: 44df1a9bc7be5530bcac3354733bbd13
+        name: '{#PIW.NAME}: Unsupported or unknown'
+        type: DEPENDENT
+        key: piw.service.unknown["{#PIW.ID}"]
+        delay: '0'
+        history: 7d
+        value_type: UNSIGNED
+        preprocessing:
+        - type: JSONPATH
+          parameters:
+          - $.metrics.unknown
+        master_item:
+          key: piw.service["{#PIW.ID}"]
+      - uuid: 45af421e5e1b5b1aa17383c0354329a0
+        name: '{#PIW.NAME}: Digest changed'
+        type: DEPENDENT
+        key: piw.service.digest_changed["{#PIW.ID}"]
+        delay: '0'
+        history: 7d
+        value_type: UNSIGNED
+        preprocessing:
+        - type: JSONPATH
+          parameters:
+          - $.metrics.digest_attention
+        master_item:
+          key: piw.service["{#PIW.ID}"]
+      trigger_prototypes:
+      - uuid: d75fc854257e5f8d93f7d90d1d237929
+        name: '{#PIW.NAME}: Maintenance attention'
+        expression: last(/Podman Image Watch by Zabbix agent/piw.service.attention["{#PIW.ID}"])=1
+        priority: WARNING
+        tags:
+        - tag: component
+          value: image-watch
+      - uuid: ed3dab2b323d5522beb41f64452f889b
+        name: '{#PIW.NAME}: Major update planning'
+        expression: last(/Podman Image Watch by Zabbix agent/piw.service.planning["{#PIW.ID}"])=1
+        priority: INFO
+        tags:
+        - tag: component
+          value: image-watch
+      - uuid: af6a6bb1b5a15d8dbb9264918061cf7f
+        name: '{#PIW.NAME}: Registry errors'
+        expression: min(/Podman Image Watch by Zabbix agent/piw.service.errors["{#PIW.ID}"],#3)=1
+        priority: WARNING
+        tags:
+        - tag: component
+          value: image-watch
+      - uuid: be3b59aaaaee588284c876891b19c291
+        name: '{#PIW.NAME}: Unsupported or unknown'
+        expression: last(/Podman Image Watch by Zabbix agent/piw.service.unknown["{#PIW.ID}"])=1
+        priority: INFO
+        tags:
+        - tag: component
+          value: image-watch
+      - uuid: 8dd454457e6b5455bb02ac7b14c9fd2e
+        name: '{#PIW.NAME}: Digest changed'
+        expression: last(/Podman Image Watch by Zabbix agent/piw.service.digest_changed["{#PIW.ID}"])=1
+        priority: INFO
+        tags:
+        - tag: component
+          value: image-watch
+  triggers:
+  - uuid: ee451ec9947b5b588c6c9a336e61212c
+    name: 'Image Watch: report is stale'
+    expression: now()-last(/Podman Image Watch by Zabbix agent/piw.timestamp)>{$PIW.MAX_AGE}
+    priority: WARNING
+    tags:
+    - tag: component
+      value: image-watch
+  - uuid: ef22f85c92ab58fca04c1e9992b0cc11
+    name: 'Image Watch: report cannot be read'
+    expression: nodata(/Podman Image Watch by Zabbix agent/vfs.file.contents["{$PIW.REPORT_PATH}"],15m)=1
+    priority: WARNING
+    tags:
+    - tag: component
+      value: image-watch
+  - uuid: 493f98c23d53525ba6f3748fd952f5a6
+    name: 'Image Watch: scans repeatedly fail'
+    expression: min(/Podman Image Watch by Zabbix agent/piw.health,#3)=1
+    priority: WARNING
+    tags:
+    - tag: component
+      value: image-watch

@@ -1,0 +1,61 @@
+# SPDX-License-Identifier: GPL-3.0-or-later
+version: 1
+sources:
+  quadlet_dirs:
+    - id: system
+      path: /etc/containers/systemd
+output:
+  format: json
+  path: null
+  pretty: true
+registries:
+  timeout: 10
+  retries: 3
+  cache_ttl: 12h
+  max_parallel_requests: 4
+defaults:
+  version_scheme: auto
+  include_prerelease: false
+  updates:
+    check_patch: true
+    check_minor: true
+    check_major: true
+    check_digest: true
+  severity:
+    patch: attention
+    minor: attention
+    major: planning
+    digest_changed: information
+state:
+  directory: ~/.local/state/podman-image-watch
+rules:
+  - match:
+      quadlet: 'test-*.container'
+    ignore: true
+  - match:
+      quadlet: authentik-server.container
+    display_name: Authentik — Authentication Server
+  - match:
+      quadlet: postgresql.container
+    version:
+      scheme: postgres
+      preserve_variant: true
+  - match:
+      image: ghcr.io/goauthentik/server
+    version:
+      scheme: calver
+notifications:
+  enabled: false
+  on_change_only: true
+  webhook:
+    enabled: false
+    url_env: PIW_WEBHOOK_URL
+  smtp:
+    enabled: false
+    host: smtp.example.org
+    port: 587
+    starttls: true
+    username_env: PIW_SMTP_USERNAME
+    password_env: PIW_SMTP_PASSWORD
+    from: image-watch@example.org
+    to: [admin@example.org]

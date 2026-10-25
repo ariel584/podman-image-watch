@@ -1,0 +1,186 @@
+# SPDX-License-Identifier: GPL-3.0-or-later
+from copy import deepcopy
+from datetime import UTC, datetime
+
+import httpx
+import pytest
+from test_checker import FakeRegistry
+
+from podman_image_watch.checker import scan
+from podman_image_watch.notifications import notify, smtp, webhook
+
+
+@pytest.fixture
+def notification_setup(config, monkeypatch):
+    settings = config["notifications"]
+    settings.update(enabled=True, retries=0)
+    settings["webhook"]["enabled"] = True
+    delivered = []
+    monkeypatch.setattr(
+        "podman_image_watch.notifications.webhook",
+        lambda cfg, payload, timeout: delivered.append(payload),
+    )
+    return settings, delivered
+
+
+def test_changes_new_unchanged_candidate_resolved(config, notification_setup):
+    settings, delivered = notification_setup
+    state, registry = {}, FakeRegistry()
+    report = scan(config, state, registry)
+    notify(report, state, settings)
+    assert [e["event"] for e in delivered[-1]["events"]] == ["new_update"] * 3
+    notify(scan(config, state, registry), state, settings)
+    assert len(delivered) == 1
+    registry.tags_result.append("1.2.5")
+    notify(scan(config, state, registry), state, settings)
+    assert delivered[-1]["events"][0]["event"] == "candidate_changed"
+    config["sources"]["images"][0]["image"] = "docker.io/example/app:2.0.0"
+    notify(scan(config, state, registry), state, settings)
+    assert {e["event"] for e in delivered[-1]["events"]} == {"resolved_update"}
+
+
+def test_snooze_expiration_and_ack_scope(config, notification_setup):
+    settings, delivered = notification_setup
+    config["defaults"]["updates"].update(snooze_until="2026-12-01")
+    state, registry = {}, FakeRegistry()
+    notify(scan(config, state, registry, datetime(2026, 12, 1, tzinfo=UTC)), state, settings)
+    assert not delivered
+    notify(scan(config, state, registry, datetime(2026, 12, 2, tzinfo=UTC)), state, settings)
+    assert len(delivered) == 1
+    config["defaults"]["updates"]["acknowledge"] = [{"type": "major", "version": "2.0.0"}]
+    notify(scan(config, state, registry, datetime(2026, 12, 2, tzinfo=UTC)), state, settings)
+    assert len(delivered) == 1  # Acknowledging an existing event is not a resolution.
+    registry.tags_result.append("3.0.0")
+    notify(scan(config, state, registry, datetime(2026, 12, 2, tzinfo=UTC)), state, settings)
+    assert delivered[-1]["events"][0]["version"] == "3.0.0"
+
+
+def test_failure_and_recovery_do_not_resolve_updates(config, notification_setup):
+    settings, delivered = notification_setup
+    state, registry = {}, FakeRegistry()
+    report = scan(config, state, registry)
+    notify(report, state, settings)
+    failed = deepcopy(report)
+    service = failed["services"][0]
+    service.update(
+        check_status="error", update_status="unknown", events=[], reason="Registry HTTP 403"
+    )
+    service["updates"] = {k: None for k in service["updates"]}
+    failed["scan"]["status"] = "partial"
+    notify(failed, state, settings)
+    assert [e["event"] for e in delivered[-1]["events"]] == ["scan_failed"]
+    notify(report, state, settings)
+    assert [e["event"] for e in delivered[-1]["events"]] == ["scan_recovered"]
+
+
+def test_notification_failures_retry_next_run(config, notification_setup, monkeypatch):
+    settings, delivered = notification_setup
+
+    def broken(*args):
+        raise httpx.ConnectError("secret-token")
+
+    monkeypatch.setattr("podman_image_watch.notifications.webhook", broken)
+    state = {}
+    report = scan(config, state, FakeRegistry())
+    notify(report, state, settings)
+    assert report["notifications"]["status"] == "error"
+    assert "secret" not in str(report)
+    assert not state["notifications"].get("webhook")
+    monkeypatch.setattr(
+        "podman_image_watch.notifications.webhook",
+        lambda cfg, payload, timeout: delivered.append(payload),
+    )
+    notify(report, state, settings)
+    assert delivered
+
+
+def test_no_notify_preserves_dedup_state(config, notification_setup):
+    settings, delivered = notification_setup
+    state = {"notifications": {"webhook": {"old": {"updates": {}}}}}
+    before = deepcopy(state["notifications"])
+    notify(scan(config, state, FakeRegistry()), state, settings, disabled=True)
+    assert state["notifications"] == before and not delivered
+
+
+def test_category_filter(config, notification_setup):
+    settings, delivered = notification_setup
+    settings["categories"] = ["major"]
+    state = {}
+    notify(scan(config, state, FakeRegistry()), state, settings)
+    assert [e["type"] for e in delivered[-1]["events"]] == ["major"]
+
+
+def test_webhook_transport_and_redirect_rejection(monkeypatch):
+    monkeypatch.setenv("HOOK", "https://hooks.example/secret-path")
+    monkeypatch.setenv("TOKEN", "secret-token")
+    real_client = httpx.Client
+    calls = []
+
+    def handler(request):
+        calls.append(request)
+        assert request.headers["Authorization"] == "Bearer secret-token"
+        return httpx.Response(302, headers={"Location": "https://evil.example"})
+
+    monkeypatch.setattr(
+        "podman_image_watch.notifications.httpx.Client",
+        lambda **kwargs: real_client(transport=httpx.MockTransport(handler), **kwargs),
+    )
+    with pytest.raises(ValueError):
+        webhook({"url_env": "HOOK", "token_env": "TOKEN"}, {"events": []}, 1)
+    assert len(calls) == 1
+
+
+def test_smtp_starttls_and_login(config, monkeypatch):
+    calls = []
+
+    class Server:
+        def __init__(self, host, port, timeout):
+            calls.append((host, port, timeout))
+
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *args):
+            pass
+
+        def starttls(self, context):
+            assert context.check_hostname
+            calls.append("tls")
+
+        def login(self, username, password):
+            assert (username, password) == ("user", "secret")
+            calls.append("login")
+
+        def send_message(self, message):
+            assert "secret" not in message.as_string()
+            calls.append("send")
+
+    monkeypatch.setattr("podman_image_watch.notifications.smtplib.SMTP", Server)
+    monkeypatch.setenv("SMTP_USER", "user")
+    monkeypatch.setenv("SMTP_PASSWORD", "secret")
+    settings = config["notifications"]["smtp"]
+    settings.update(
+        host="smtp.example",
+        username_env="SMTP_USER",
+        password_env="SMTP_PASSWORD",
+        to=["admin@example.org"],
+        **{"from": "watch@example.org"},
+    )
+    smtp(settings, {"events": []}, 1)
+    assert calls[1:] == ["tls", "login", "send"]
+
+
+def test_smtp_delivery_failure_keeps_report(config, monkeypatch):
+    import smtplib
+
+    config["notifications"].update(enabled=True, retries=0)
+    config["notifications"]["smtp"]["enabled"] = True
+
+    def broken(*args):
+        raise smtplib.SMTPException("secret-password")
+
+    monkeypatch.setattr("podman_image_watch.notifications.smtp", broken)
+    report, state = scan(config, {}, FakeRegistry()), {}
+    notify(report, state, config["notifications"])
+    assert report["services"][0]["updates"]["patch"]
+    assert report["notifications"]["status"] == "error" and "secret" not in str(report)

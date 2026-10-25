@@ -1,0 +1,105 @@
+{
+  "schema_version": 1,
+  "tool": "podman-image-watch",
+  "tool_version": "0.1.0",
+  "generated_at": "2026-10-25T10:00:00Z",
+  "scan": {
+    "status": "success",
+    "health": 0,
+    "timestamp": 1792922400,
+    "last_success_at": "2026-10-25T10:00:00Z",
+    "last_success_timestamp": 1792922400,
+    "duration_seconds": 0.01,
+    "diagnostics": []
+  },
+  "summary": {
+    "total_services": 1,
+    "unique_images": 1,
+    "errors": 0,
+    "unknown": 0,
+    "skipped": 0,
+    "attention_services": 1,
+    "planning_services": 1,
+    "update_services": 1,
+    "patch_updates": 1,
+    "minor_updates": 1,
+    "major_updates": 1,
+    "digest_changed_updates": 0
+  },
+  "services": [
+    {
+      "id": "93410cbed99e1f41e8da6be6cfdd364f",
+      "source": "explicit",
+      "quadlet": null,
+      "source_file": null,
+      "display_name": "Example Application",
+      "image": "docker.io/example/app:1.2.3",
+      "repository": "docker.io/example/app",
+      "current_version": "1.2.3",
+      "configured_digest": null,
+      "check_status": "ok",
+      "update_status": "updates_available",
+      "priority": "attention",
+      "version_scheme": "semver",
+      "reason": null,
+      "updates": {
+        "patch": "1.2.4",
+        "minor": "1.3.0",
+        "major": "2.0.0",
+        "digest_changed": null
+      },
+      "events": [
+        {
+          "type": "patch",
+          "version": "1.2.4",
+          "priority": "attention",
+          "acknowledged": false,
+          "acknowledgement_reason": null,
+          "snoozed": false,
+          "notification_suppressed": false
+        },
+        {
+          "type": "minor",
+          "version": "1.3.0",
+          "priority": "attention",
+          "acknowledged": false,
+          "acknowledgement_reason": null,
+          "snoozed": false,
+          "notification_suppressed": false
+        },
+        {
+          "type": "major",
+          "version": "2.0.0",
+          "priority": "planning",
+          "acknowledged": false,
+          "acknowledgement_reason": null,
+          "snoozed": false,
+          "notification_suppressed": false
+        }
+      ],
+      "digest": null,
+      "acknowledged": false,
+      "snoozed": false,
+      "notification_suppressed": false,
+      "labels": {},
+      "notify": true,
+      "metrics": {
+        "attention": 1,
+        "planning": 1,
+        "errors": 0,
+        "unknown": 0,
+        "patch": 1,
+        "minor": 1,
+        "major": 1,
+        "digest_changed": 0,
+        "digest_attention": 0
+      },
+      "snooze_until": null,
+      "snooze_reason": ""
+    }
+  ],
+  "notifications": {
+    "status": "disabled",
+    "errors": []
+  }
+}

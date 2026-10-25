@@ -1,0 +1,84 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:podman-image-watch:report:1",
+  "$comment": "SPDX-License-Identifier: GPL-3.0-or-later",
+  "title": "Podman Image Watch report v1",
+  "type": "object",
+  "required": ["schema_version", "tool", "tool_version", "generated_at", "scan", "summary", "services", "notifications"],
+  "properties": {
+    "schema_version": {"const": 1},
+    "tool": {"const": "podman-image-watch"},
+    "tool_version": {"type": "string"},
+    "generated_at": {"type": "string", "format": "date-time"},
+    "scan": {
+      "type": "object",
+      "required": ["status", "health", "timestamp", "last_success_at", "last_success_timestamp", "duration_seconds", "diagnostics"],
+      "properties": {
+        "status": {"enum": ["success", "partial"]},
+        "health": {"enum": [0, 1]},
+        "timestamp": {"type": "integer", "minimum": 0},
+        "last_success_at": {"type": ["string", "null"], "format": "date-time"},
+        "last_success_timestamp": {"type": "integer", "minimum": 0},
+        "duration_seconds": {"type": "number", "minimum": 0},
+        "diagnostics": {"type": "array", "items": {"type": "string"}}
+      }
+    },
+    "summary": {
+      "type": "object",
+      "required": ["total_services", "unique_images", "errors", "unknown", "skipped", "attention_services", "planning_services", "update_services", "patch_updates", "minor_updates", "major_updates", "digest_changed_updates"],
+      "additionalProperties": {"type": "integer", "minimum": 0}
+    },
+    "services": {"type": "array", "items": {"$ref": "#/$defs/service"}},
+    "notifications": {
+      "type": "object", "required": ["status", "errors"],
+      "properties": {"status": {"enum": ["disabled", "sent", "unchanged", "error"]}, "errors": {"type": "array", "items": {"type": "string"}}}
+    }
+  },
+  "$defs": {
+    "nullable_string": {"type": ["string", "null"]},
+    "event": {
+      "type": "object",
+      "required": ["type", "version", "priority", "acknowledged", "acknowledgement_reason", "snoozed", "notification_suppressed"],
+      "properties": {
+        "type": {"enum": ["patch", "minor", "major", "digest_changed"]},
+        "version": {"type": "string"},
+        "priority": {"enum": ["information", "planning", "attention", "warning"]},
+        "acknowledged": {"type": "boolean"},
+        "acknowledgement_reason": {"$ref": "#/$defs/nullable_string"},
+        "snoozed": {"type": "boolean"},
+        "notification_suppressed": {"type": "boolean"}
+      }
+    },
+    "service": {
+      "type": "object",
+      "required": ["id", "source", "quadlet", "source_file", "display_name", "image", "repository", "current_version", "configured_digest", "check_status", "update_status", "priority", "version_scheme", "reason", "updates", "events", "digest", "acknowledged", "snoozed", "notification_suppressed", "labels", "notify", "metrics"],
+      "properties": {
+        "id": {"type": "string", "pattern": "^[a-f0-9]{32}$"},
+        "source": {"type": "string"},
+        "quadlet": {"$ref": "#/$defs/nullable_string"},
+        "source_file": {"$ref": "#/$defs/nullable_string"},
+        "display_name": {"type": "string"},
+        "image": {"type": "string"},
+        "repository": {"$ref": "#/$defs/nullable_string"},
+        "current_version": {"$ref": "#/$defs/nullable_string"},
+        "configured_digest": {"$ref": "#/$defs/nullable_string"},
+        "check_status": {"enum": ["ok", "skipped", "unknown", "unsupported", "error"]},
+        "update_status": {"enum": ["unknown", "skipped", "pinned", "up_to_date", "updates_available"]},
+        "priority": {"enum": ["information", "planning", "attention", "warning"]},
+        "version_scheme": {"$ref": "#/$defs/nullable_string"},
+        "reason": {"$ref": "#/$defs/nullable_string"},
+        "updates": {"type": "object", "required": ["patch", "minor", "major", "digest_changed"], "additionalProperties": {"$ref": "#/$defs/nullable_string"}},
+        "events": {"type": "array", "items": {"$ref": "#/$defs/event"}},
+        "digest": {"oneOf": [{"type": "null"}, {"type": "object", "required": ["current", "scope", "platforms"], "properties": {"current": {"type": "string", "pattern": "^sha256:[a-f0-9]{64}$"}, "scope": {"enum": ["index", "manifest"]}, "platforms": {"type": "array", "items": {"type": "string"}}, "previous": {"$ref": "#/$defs/nullable_string"}, "baseline_established": {"type": "boolean"}}}]},
+        "acknowledged": {"type": "boolean"},
+        "snoozed": {"type": "boolean"},
+        "snooze_until": {"$ref": "#/$defs/nullable_string"},
+        "snooze_reason": {"type": "string"},
+        "notification_suppressed": {"type": "boolean"},
+        "notify": {"type": "boolean"},
+        "labels": {"type": "object", "additionalProperties": {"type": "string"}},
+        "metrics": {"type": "object", "required": ["attention", "planning", "errors", "unknown", "patch", "minor", "major", "digest_changed", "digest_attention"], "additionalProperties": {"enum": [0, 1]}}
+      }
+    }
+  }
+}

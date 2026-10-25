@@ -1,0 +1,6 @@
+# SPDX-License-Identifier: GPL-3.0-or-later
+include LICENSE README.md pyproject.toml
+recursive-include docs *.md *.json
+recursive-include examples *.yaml *.container *.service *.timer
+recursive-include tests *.py *.json *.container
+recursive-include tools *.py
