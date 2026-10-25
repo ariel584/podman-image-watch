@@ -7,7 +7,7 @@ After=network-online.target
 [Service]
 Type=oneshot
 User=podman-image-watch
-Group=zabbix
+Group=podman-image-watch
 ExecStart=/opt/podman-image-watch/bin/podman-image-watch --config /etc/podman-image-watch/config.yaml --state-dir /var/lib/podman-image-watch/private --output /var/lib/podman-image-watch/report.json
 SuccessExitStatus=1
 StateDirectory=podman-image-watch

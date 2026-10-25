@@ -10,8 +10,19 @@ disabled when Zabbix manages alerting.
 Follow [deployment.md](deployment.md) to install the scanner, configure its Quadlet sources,
 and run the oneshot service. Verify that `/var/lib/podman-image-watch/report.json` exists
 and that the agent account can traverse the directory and read the file. The systemd example
-uses a 0750 shared directory, `Group=zabbix`, a 0640 report, and a separate private 0700 state
-directory. Atomic replacements create new inodes, so a one-time file ACL alone is insufficient;
+uses a 0750 directory owned by `podman-image-watch:podman-image-watch`, a 0640 report, and
+a separate private 0700 state directory. Grant the agent account membership in the report
+group and restart the agent to apply its new supplementary group (assuming the account and
+unit are named `zabbix` and `zabbix-agent2`):
+
+```sh
+sudo usermod -aG podman-image-watch zabbix
+sudo systemctl restart zabbix-agent2
+sudo -u zabbix head -c 200 /var/lib/podman-image-watch/report.json
+```
+
+Zabbix is optional; creating its account/group is not required to install the scanner.
+Atomic replacements create new inodes, so a one-time file ACL alone is insufficient;
 use the shared group or directory default ACLs. Keep SELinux enforcing and inspect AVCs if
 Unix permissions are correct but reads fail. Do not grant access to the private state.
 

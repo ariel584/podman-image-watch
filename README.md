@@ -134,6 +134,17 @@ remain visible. Notification failures preserve the scan report.
 
 ## Deploy and monitor
 
+After pulling the repository on an AlmaLinux server, follow the commands in
+[the server installation guide](docs/deployment.md). It covers Python packages, an isolated
+installation in `/opt/podman-image-watch`, a dedicated service account, configuration,
+a manual preview, daily scheduling and updates after future `git pull` operations.
+
+The ready-to-edit [server configuration](examples/config-server.yaml) reads
+`/etc/containers/systemd`, writes `/var/lib/podman-image-watch/report.json`, hides variants
+in display fields, resolves floating versions, and ignores `dnsmasq-acme.container` as a
+local image. Review the source path and ignore rule for your host. It keeps notifications
+disabled. The service has its own group; Zabbix is an optional later integration.
+
 The [systemd service and timer](examples/systemd) run a daily oneshot scan with explicit file
 output and filesystem hardening. Follow the [Linux/AlmaLinux deployment guide](docs/deployment.md)
 for installation, verification and removal. Ordinary scans run as a dedicated unprivileged
