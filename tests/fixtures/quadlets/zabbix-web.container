@@ -1,0 +1,5 @@
+# SPDX-License-Identifier: GPL-3.0-or-later
+# Sanitized image settings from the supplied real Quadlet examples.
+[Container]
+Image=docker.io/zabbix/zabbix-web-nginx-pgsql:ubuntu-7.0.32
+ContainerName=zabbix-web
