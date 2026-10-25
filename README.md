@@ -192,8 +192,8 @@ tag endpoints are queried, never layer endpoints.
 ```
 
 Tests use mocked HTTP transports and local fixtures, without live registry access.
-Sanitized image settings from the supplied real Quadlets cover Authentik, Grafana,
-PostgreSQL, Zabbix, local images and floating tags; no server secrets or volumes are copied.
+Public Quadlet examples and temporary synthetic installations cover shared images, version
+variants, local images and floating tags. Tests do not depend on a real server's service inventory.
 CI covers Python 3.11–3.14 on Linux. Local execution has also been exercised on macOS;
 production service/SELinux verification must take place on the intended Linux host.
 

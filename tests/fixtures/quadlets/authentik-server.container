@@ -1,0 +1,5 @@
+# SPDX-License-Identifier: GPL-3.0-or-later
+# Example image settings for Quadlet parser tests.
+[Container]
+Image=ghcr.io/goauthentik/server:2026.8.5
+ContainerName=authentik-server

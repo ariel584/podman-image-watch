@@ -1,7 +1,6 @@
 # SPDX-License-Identifier: GPL-3.0-or-later
 from copy import deepcopy
 from datetime import UTC, datetime
-from pathlib import Path
 
 import httpx
 
@@ -111,43 +110,57 @@ def test_ignore_and_local_preserved(config):
     assert report["summary"]["skipped"] == report["summary"]["unknown"] == 1
 
 
-def test_real_example_integration(config):
-    config["sources"].update(
-        images=[], quadlet_dirs=[str(Path(__file__).parent / "fixtures/quadlets")]
-    )
-    config["rules"] = [{"match": {"quadlet": "dnsmasq-acme.container"}, "ignore": True}]
+def test_synthetic_installation_integration(config, synthetic_quadlets):
+    root, images = synthetic_quadlets
+    config["sources"].update(images=[], quadlet_dirs=[str(root)])
+    config["rules"] = [
+        {"match": {"quadlet": "local.container"}, "ignore": True},
+        {"match": {"quadlet": "database.container"}, "version": {"scheme": "postgres"}},
+    ]
+    tags = {
+        "/v2/demo/app/tags/list": ["1.2.3", "1.2.4", "1.3.0", "2.0.0"],
+        "/v2/demo/database/tags/list": ["18.6-bookworm", "18.7-bookworm", "19.0-alpine"],
+        "/v2/demo/calendar/tags/list": ["2026.8.5", "2026.8.6", "2027.1.0"],
+        "/v2/demo/metrics/tags/list": ["ubuntu-7.0.32", "ubuntu-7.0.33", "alpine-7.0.99"],
+    }
     calls = []
 
     def handler(request):
-        calls.append(str(request.url))
-        if "/manifests/" in request.url.path:
+        assert request.url.host == "registry.example.test"
+        calls.append(request.url.path)
+        if request.url.path == "/v2/demo/gateway/manifests/stable-alpine":
             return httpx.Response(200, json={"schemaVersion": 2, "manifests": []})
-        return httpx.Response(
-            200,
-            json={
-                "tags": [
-                    "v0.107.79",
-                    "2026.8.5",
-                    "13.2.4",
-                    "13.2.5",
-                    "3.7.9",
-                    "18.6-bookworm",
-                    "18.7-bookworm",
-                    "0.30.2",
-                    "2.3.1",
-                    "ubuntu-7.0.32",
-                    "ubuntu-7.0.33",
-                ]
-            },
-        )
+        return httpx.Response(200, json={"tags": tags[request.url.path]})
 
     client = RegistryClient(config["registries"], transport=httpx.MockTransport(handler))
-    report = scan(config, {}, client)
+    try:
+        report = scan(config, {}, client)
+    finally:
+        client.close()
     assert report["scan"]["status"] == "success"
-    assert report["summary"]["total_services"] == 12
-    assert sum("goauthentik/server/tags/list" in c for c in calls) == 1
-    assert report["summary"]["patch_updates"] == 4
-    client.close()
+    assert report["summary"]["total_services"] == len(images)
+    assert report["summary"]["unique_images"] == len(set(images.values()))
+    assert report["summary"]["skipped"] == 1
+    assert calls.count("/v2/demo/app/tags/list") == 1
+    assert calls.count("/v2/demo/gateway/manifests/stable-alpine") == 1
+    by_quadlet = {service["quadlet"]: service for service in report["services"]}
+    assert set(by_quadlet) == set(images)
+    for name in ("frontend.container", "worker.container"):
+        assert by_quadlet[name]["updates"] == {
+            "patch": "1.2.4",
+            "minor": "1.3.0",
+            "major": "2.0.0",
+            "digest_changed": None,
+        }
+    assert by_quadlet["database.container"]["updates"]["patch"] == "18.7-bookworm"
+    assert by_quadlet["database.container"]["updates"]["major"] is None
+    assert by_quadlet["calendar.container"]["updates"]["patch"] == "2026.8.6"
+    assert by_quadlet["calendar.container"]["updates"]["minor"] == "2027.1.0"
+    assert by_quadlet["calendar.container"]["updates"]["major"] is None
+    assert by_quadlet["prefixed.container"]["updates"]["patch"] == "ubuntu-7.0.33"
+    assert by_quadlet["floating.container"]["digest"]["baseline_established"]
+    assert not by_quadlet["floating.container"]["events"]
+    assert by_quadlet["local.container"]["check_status"] == "skipped"
 
 
 def test_digest_scope_change_resets_baseline(config):

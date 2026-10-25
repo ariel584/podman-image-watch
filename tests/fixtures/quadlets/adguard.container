@@ -1,0 +1,5 @@
+# SPDX-License-Identifier: GPL-3.0-or-later
+# Example image settings for Quadlet parser tests.
+[Container]
+ContainerName=adguard
+Image=docker.io/adguard/adguardhome:v0.107.79

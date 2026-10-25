@@ -3,7 +3,7 @@ from pathlib import Path
 
 import pytest
 
-from podman_image_watch.quadlet import discover, effective, parse_reference
+from podman_image_watch.quadlet import discover, effective, humanize, parse_reference
 
 
 def write(root, name, text):
@@ -13,22 +13,42 @@ def write(root, name, text):
     return path
 
 
-def test_real_sanitized_examples(config):
+def test_example_fixture_discovery(config):
+    root = Path(__file__).parent / "fixtures/quadlets"
+    expected_names = {path.name for path in root.glob("*.container")}
+    assert expected_names, "Keep at least one example Quadlet for the fixture smoke test"
     config["sources"] = {
-        "quadlet_dirs": [str(Path(__file__).parent / "fixtures/quadlets")],
+        "quadlet_dirs": [str(root)],
         "images": [],
         "allow_short_names": False,
     }
     services, diagnostics = discover(config)
-    assert len(services) == 12 and not diagnostics
-    images = {s.quadlet: s.image for s in services}
-    assert images["postgresql.container"] == "docker.io/library/postgres:18.6-bookworm"
-    assert images["authentik-server.container"] == images["authentik-worker.container"]
-    assert len({s.id for s in services}) == 12
-    assert (
-        next(s for s in services if s.quadlet == "dnsmasq-acme.container").display_name
-        == "DNSmasq ACME"
+    assert not diagnostics
+    assert {service.quadlet for service in services} == expected_names
+    assert len({service.id for service in services}) == len(expected_names)
+    assert all(
+        service.image and service.display_name and not service.reason for service in services
     )
+
+
+def test_synthetic_installation_discovery(config, synthetic_quadlets):
+    root, images = synthetic_quadlets
+    config["sources"].update(quadlet_dirs=[str(root)], images=[])
+    services, diagnostics = discover(config)
+    assert not diagnostics
+    assert {service.quadlet: service.image for service in services} == images
+    assert len({service.id for service in services}) == len(images)
+    by_quadlet = {service.quadlet: service for service in services}
+    assert by_quadlet["frontend.container"].image == by_quadlet["worker.container"].image
+    assert by_quadlet["frontend.container"].id != by_quadlet["worker.container"].id
+
+
+@pytest.mark.parametrize(
+    "name,expected",
+    [("http-api", "HTTP API"), ("dns-acme", "DNS ACME"), ("db-worker", "DB Worker")],
+)
+def test_technical_display_names(name, expected):
+    assert humanize(name) == expected
 
 
 def test_sections_repeated_continuation(tmp_path):
