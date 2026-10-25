@@ -1,0 +1,82 @@
+# Podman Image Watch — Git ignore rules
+# Keep source code, tests, fixtures, examples, and documentation under version control.
+
+# Python bytecode and caches
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Python packaging and build artifacts
+build/
+dist/
+*.egg-info/
+.eggs/
+*.egg
+pip-wheel-metadata/
+
+# Virtual environments
+.venv/
+venv/
+env/
+ENV/
+__pypackages__/
+
+# Testing, coverage and static-analysis caches
+.pytest_cache/
+.hypothesis/
+.tox/
+.nox/
+.mypy_cache/
+.pyright/
+.ruff_cache/
+.pyre/
+.pytype/
+.coverage
+.coverage.*
+coverage.xml
+htmlcov/
+junit.xml
+
+# IDEs and editors
+.idea/
+*.iml
+.vscode/
+*.swp
+*.swo
+*~
+
+# OS-generated files
+.DS_Store
+Thumbs.db
+Desktop.ini
+
+# Local environment and sensitive configuration
+.env
+.env.*
+!.env.example
+!.env.sample
+/config.yaml
+/config.yml
+/config.local.yaml
+/config.local.yml
+*.secrets.yaml
+*.secrets.yml
+secrets.yaml
+secrets.yml
+
+# Runtime reports, cache and state (repository root only)
+/podman-image-watch.json
+/report.json
+/reports/
+/output/
+/state/
+/.state/
+/cache/
+/.cache/
+/.local/
+
+# Local logs
+*.log
+
+# Do not ignore JSON globally: test fixtures and examples are versioned.
+# Keep pyproject.toml and dependency lockfiles under version control.
