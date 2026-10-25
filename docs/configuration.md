@@ -9,7 +9,10 @@ creating state or querying registries. It does not verify directory or credentia
 
 Precedence is built-in defaults, YAML, then explicitly supplied CLI arguments. Repeated
 `--quadlet-dir` values replace the YAML directory list. `--output -` replaces a YAML output
-path. `--format`, `--state-dir` and `--no-notify` provide the other CLI overrides.
+path. `--format`, `--state-dir` and `--no-notify` provide other CLI overrides.
+`--hide-variants` and `--hide-skipped` override their output settings; their `--no-...`
+forms disable them. `--resolve-floating` / `--no-resolve-floating` override the corresponding
+update policy after all matching rules, including Quadlet rules.
 Paths are relative to the working directory, with `~` expanded for filesystem paths.
 The parser uses safe YAML with a 1 MiB configuration limit; configuration files are trusted
 local administrator input. YAML aliases are rejected to keep resource use bounded.
@@ -60,6 +63,10 @@ including its `library/` namespace, and does not read Podman's short-name aliase
 
 `output.format`: `json` (default) or `table`. `output.path`: null (stdout), `-` (stdout),
 or a file path. `output.pretty`: true by default; false produces compact JSON for monitoring.
+`output.hide_variants`: false by default; true removes distribution prefixes/suffixes in
+the additional `display` fields and table output. Original tags and matching constraints
+are preserved. `output.hide_skipped`: false by default; true hides ignored rows in tables.
+The JSON inventory and summary still include skipped services.
 Output files must be outside scanned Quadlet directories and differ from the YAML configuration,
 private state and lock paths, to prevent accidental overwriting of inputs.
 File replacement is atomic and UTF-8; new reports use mode 0640, existing permission bits
@@ -84,6 +91,7 @@ at 16 MiB. Deleting state also resets digest and notification history.
 | max_tags | 100000 | Maximum distinct tags per repository |
 | max_response_bytes | 8388608 | Maximum decoded bytes per HTTP response |
 | deadline | 120 | Total seconds per tag-list or manifest operation (1–600) |
+| max_resolution_candidates | 20 | Maximum numbered-tag manifests per floating-tag lookup (1–100) |
 
 Exponential retries honor `Retry-After` up to 30 seconds within the operation deadline.
 Incomplete pagination is an error, never an up-to-date result. Complete tag lists can be
@@ -146,7 +154,15 @@ rules:
 `ignore` preserves a skipped service in the report, without registry requests. Ignored
 versions are excluded from candidates. `check_patch`, `check_minor`, `check_major` and
 `check_digest` default to true. `monitor_immutable` defaults to false and enables digest
-observations behind numeric tags. Acknowledgements match exact category and candidate
+observations behind numeric tags. `resolve_floating` defaults to false; enabling it matches
+the registry's current floating digest against versioned tags. The alias lookup shares a
+single registry deadline across its manifest probes and checks at most
+`max_resolution_candidates` tags, preferring the named variant and newer versions. Use
+`version.tag_patterns` to narrow the search for long-lived maintenance aliases. No match or
+conflicting versions produce an explicit unknown/ambiguous resolution, without guessing.
+Registry failures during resolution make the service check an error while retaining digest
+results. See [version policies](version-policies.md) for the distinction from running images.
+Acknowledgements match exact category and candidate
 (or digest for `digest_changed`). A different candidate requires a new acknowledgement.
 Snoozes include the whole named UTC date and expire at midnight of the following day.
 Neither snoozing nor acknowledging removes candidates. `notify: false` suppresses operational

@@ -37,6 +37,7 @@ always go to stderr. Updates alone leave exit status 0.
 podman-image-watch --quadlet-dir ./examples/quadlets
 podman-image-watch --quadlet-dir /etc/containers/systemd --quadlet-dir /home/alice/.config/containers/systemd
 podman-image-watch --quadlet-dir /etc/containers/systemd --format table
+podman-image-watch --quadlet-dir /etc/containers/systemd --format table --hide-variants --resolve-floating
 podman-image-watch --help
 podman-image-watch --version
 ```
@@ -108,6 +109,24 @@ Multi-platform indexes are compared consistently across scanning hosts. Digest-p
 references are verified without inventing tag recommendations. Registry failures never
 become up-to-date results. Ambiguous short names, local images and unresolved dynamic
 references stay visible with reasons; short names require explicit opt-in to Docker Hub.
+
+`--hide-variants` displays `ubuntu-7.0.32` as `7.0.32` and `18.6-bookworm` as `18.6`;
+raw JSON fields and variant matching remain unchanged. `--resolve-floating` optionally
+matches a floating tag's exact manifest digest to numbered tags, showing a value such as
+`1.28.3 [stable]`. This identifies the registry's current target, not a running container's
+version. Missing or conflicting evidence remains unknown. Resolution makes additional
+bounded metadata requests and is disabled by default.
+
+To skip a local image, add `ignore: true` to a YAML rule matching its Quadlet:
+
+```yaml
+rules:
+  - match: {quadlet: dnsmasq-acme.container}
+    ignore: true
+```
+
+Ignored services stay in JSON as skipped, without registry requests. `--hide-skipped`
+omits those rows from the table while retaining the full monitoring report.
 
 Optional HTTPS webhook and STARTTLS email notifications have per-adapter change detection,
 filters, bounded retries and environment-based secrets. Acknowledged and snoozed candidates

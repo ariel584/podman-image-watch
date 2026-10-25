@@ -10,9 +10,10 @@ from datetime import UTC, datetime
 
 from . import __version__
 from .config import duration, policy_for, snoozed
+from .floating import resolve
 from .quadlet import Service, discover, parse_reference
 from .registry import RegistryClient, RegistryError
-from .versions import compare
+from .versions import compare, display_tag
 
 PRIORITY_RANK = {"information": 0, "planning": 1, "attention": 2, "warning": 3}
 LOG = logging.getLogger(__name__)
@@ -39,6 +40,9 @@ def check_service(
         "update_status": "unknown",
         "priority": "information",
         "version_scheme": None,
+        "resolved_tag": None,
+        "resolved_version": None,
+        "resolution": None,
         "reason": None,
         "updates": {"patch": None, "minor": None, "major": None, "digest_changed": None},
         "events": [],
@@ -115,8 +119,10 @@ def check_service(
             if reference.tag not in tags:
                 unsupported = "Configured tag is absent from registry metadata"
         result["updates"].update(candidates)
-        if updates.get("check_digest", True) and (
-            scheme == "floating" or updates.get("monitor_immutable", False)
+        resolve_version = scheme == "floating" and updates.get("resolve_floating", False)
+        check_digest = updates.get("check_digest", True)
+        if resolve_version or (
+            check_digest and (scheme == "floating" or updates.get("monitor_immutable", False))
         ):
             digest = client.manifest(reference)
             key = reference.repository + ":" + (reference.tag or "latest")
@@ -125,11 +131,35 @@ def check_service(
                 previous = None
             digest["previous"] = previous.get("current") if previous else None
             digest["baseline_established"] = previous is None
-            if previous and previous.get("current") != digest["current"]:
+            if check_digest and previous and previous.get("current") != digest["current"]:
                 result["updates"]["digest_changed"] = digest["current"]
             result["digest"] = digest
-            baseline = (key, {"current": digest["current"], "scope": digest["scope"]})
-        if scheme == "floating" and not updates.get("check_digest", True):
+            if check_digest:
+                baseline = (key, {"current": digest["current"], "scope": digest["scope"]})
+            if resolve_version:
+                try:
+                    result["resolution"] = resolve(
+                        reference,
+                        digest,
+                        client,
+                        policy,
+                        max_candidates=config["registries"]["max_resolution_candidates"],
+                        timeout=config["registries"]["deadline"],
+                    )
+                except RegistryError as exc:
+                    result["resolution"] = {
+                        "status": "error",
+                        "source": "matching_manifest_digest",
+                        "tag": None,
+                        "version": None,
+                        "matching_tags": [],
+                        "checked_tags": None,
+                        "reason": str(exc),
+                    }
+                    raise
+                result["resolved_tag"] = result["resolution"]["tag"]
+                result["resolved_version"] = result["resolution"]["version"]
+        if scheme == "floating" and not check_digest and not resolve_version:
             result.update(
                 check_status="unsupported",
                 update_status="unknown",
@@ -139,6 +169,11 @@ def check_service(
             result.update(check_status="unsupported", update_status="unknown", reason=unsupported)
         else:
             result.update(check_status="ok", update_status="up_to_date")
+            if scheme == "floating" and not check_digest:
+                result.update(
+                    update_status="unknown",
+                    reason="Only the registry alias version was checked; digest monitoring is disabled",
+                )
     except RegistryError as exc:
         result.update(
             check_status="error", update_status="unknown", priority="warning", reason=str(exc)
@@ -222,6 +257,25 @@ def scan(
         if own_client:
             client.close()
     results = [result for result, _ in outcomes]
+    for result in results:
+        policy = policy_for(
+            config,
+            quadlet=result["quadlet"],
+            repository=result["repository"] or result["image"].split(":")[0],
+            source=result["source"],
+        )
+        options = policy.get("version", {})
+        hide = config["output"]["hide_variants"]
+        result["display"] = {
+            "current_version": display_tag(
+                result["resolved_tag"] or result["current_version"], options, hide
+            ),
+            "configured_tag": display_tag(result["current_version"], options, hide),
+            "updates": {
+                kind: display_tag(tag, options, hide) if kind != "digest_changed" else tag
+                for kind, tag in result["updates"].items()
+            },
+        }
     # Keep baselines only for currently monitored references; preserve failed observations.
     live_keys = set()
     for service in results:

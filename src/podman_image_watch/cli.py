@@ -39,6 +39,24 @@ def parser() -> argparse.ArgumentParser:
     result.add_argument("--format", choices=["json", "table"], help="Output format (default: json)")
     result.add_argument("--state-dir", help="State, cache and process lock directory")
     result.add_argument(
+        "--hide-variants",
+        action=argparse.BooleanOptionalAction,
+        default=None,
+        help="Hide distribution prefixes/suffixes in display versions",
+    )
+    result.add_argument(
+        "--hide-skipped",
+        action=argparse.BooleanOptionalAction,
+        default=None,
+        help="Hide ignored services in table output (JSON retains them)",
+    )
+    result.add_argument(
+        "--resolve-floating",
+        action=argparse.BooleanOptionalAction,
+        default=None,
+        help="Match floating tags to numbered tags by exact manifest digest",
+    )
+    result.add_argument(
         "--no-notify", action="store_true", help="Disable notifications for this run"
     )
     result.add_argument("--verbose", action="store_true", help="Additional diagnostics on stderr")
@@ -66,10 +84,15 @@ def main(argv: list[str] | None = None) -> int:
             overrides["output"]["format"] = args.format
     if args.state_dir:
         overrides["state"] = {"directory": args.state_dir}
+    for key in ("hide_variants", "hide_skipped"):
+        if getattr(args, key) is not None:
+            overrides.setdefault("output", {})[key] = getattr(args, key)
     try:
         if args.command == "validate-config" and not args.config:
             raise ConfigError("validate-config requires --config")
         config = load(args.config, overrides)
+        if args.resolve_floating is not None:
+            config["_cli_policy"] = {"updates": {"resolve_floating": args.resolve_floating}}
         if args.command == "validate-config":
             print("Configuration is valid", file=sys.stderr)
             return 0

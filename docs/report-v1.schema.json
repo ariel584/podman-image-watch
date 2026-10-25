@@ -61,6 +61,34 @@
         "image": {"type": "string"},
         "repository": {"$ref": "#/$defs/nullable_string"},
         "current_version": {"$ref": "#/$defs/nullable_string"},
+        "resolved_tag": {"$ref": "#/$defs/nullable_string"},
+        "resolved_version": {"$ref": "#/$defs/nullable_string"},
+        "resolution": {
+          "oneOf": [
+            {"type": "null"},
+            {
+              "type": "object",
+              "required": ["status", "source", "tag", "version", "matching_tags", "checked_tags", "reason"],
+              "properties": {
+                "status": {"enum": ["resolved", "unknown", "ambiguous", "error"]},
+                "source": {"const": "matching_manifest_digest"},
+                "tag": {"$ref": "#/$defs/nullable_string"},
+                "version": {"$ref": "#/$defs/nullable_string"},
+                "reason": {"$ref": "#/$defs/nullable_string"},
+                "matching_tags": {"type": "array", "items": {"type": "string"}},
+                "checked_tags": {"type": ["integer", "null"], "minimum": 0}
+              }
+            }
+          ]
+        },
+        "display": {
+          "type": "object", "required": ["current_version", "configured_tag", "updates"],
+          "properties": {
+            "current_version": {"$ref": "#/$defs/nullable_string"},
+            "configured_tag": {"$ref": "#/$defs/nullable_string"},
+            "updates": {"type": "object", "required": ["patch", "minor", "major", "digest_changed"], "additionalProperties": {"$ref": "#/$defs/nullable_string"}}
+          }
+        },
         "configured_digest": {"$ref": "#/$defs/nullable_string"},
         "check_status": {"enum": ["ok", "skipped", "unknown", "unsupported", "error"]},
         "update_status": {"enum": ["unknown", "skipped", "pinned", "up_to_date", "updates_available"]},

@@ -71,3 +71,41 @@ Digest-pinned references are verified against manifest bytes and reported as `pi
 they have no floating target and receive no speculative tag upgrades. A tag plus digest
 is checked by its pinned digest. A missing configured tag or registry failure is unknown,
 never proof that the image is current.
+
+## Optional numbered versions for floating tags
+
+`defaults.updates.resolve_floating: true`, a matching rule's `updates.resolve_floating`, or
+`--resolve-floating` enables an additional metadata lookup. The scanner first reads the
+floating tag's complete manifest/index digest, then probes allowed numbered tags and requires
+an identical digest **and scope**. It never chooses the largest tag merely because it exists.
+A successful result records `resolved_tag`, normalized `resolved_version` and a `resolution`
+evidence object. The configured `current_version` remains the original alias.
+
+The search prefers tags matching the alias suffix (for example `stable-alpine` prefers
+numbered `-alpine` tags), then newer versions. It obeys version schemes, explicit prefixes,
+suffixes, tag patterns, major-family restrictions, prerelease/channel filters and ignored
+versions. Partial numeric aliases cannot establish a version. Multiple matching tags with
+the same numeric version are accepted; observed matches advertising different versions are
+reported as ambiguous. No match within the configured bound remains unknown. The evidence
+is a matching registry label, not an independent verification of software inside the image.
+
+Resolution is disabled by default because it makes additional manifest requests. At most
+`registries.max_resolution_candidates` (default 20) manifests are probed per alias, with a
+shared `registries.deadline`. Per-run metadata deduplication still applies. Limit or narrow
+the search with `version.tag_patterns` for old maintenance channels. A short limit can miss
+an otherwise matching tag. Missing/ambiguous version evidence does not invalidate a successful
+digest observation; registry request failures do make the check an error. Digest updates
+remain the update mechanism for floating tags; resolution does not infer channel-compatible
+patch, minor or major candidates for them.
+
+This identifies the version advertised for the registry alias **now**. A host may still be
+running an older image previously pulled under that alias. Determining the running version
+requires runtime information outside this tool's read-only Quadlet/registry scope.
+`latest` is a tag name; a literal `last` is an unrelated custom tag and is not automatically
+recognized as a floating policy.
+
+`--hide-variants` or `output.hide_variants: true` changes presentation only. The table and
+`display` JSON fields show numeric versions without distribution text; raw image/tag fields
+and variant matching stay intact. Prerelease markers are retained. Unrecognized tags are
+shown unchanged. A resolved alias appears in a table as `1.28.3 [stable]` when variants are
+hidden, or `1.28.3-alpine [stable-alpine]` otherwise (illustrative versions).

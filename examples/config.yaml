@@ -8,6 +8,8 @@ output:
   format: json
   path: null
   pretty: true
+  hide_variants: false
+  hide_skipped: false
 registries:
   timeout: 10
   retries: 3
@@ -21,6 +23,7 @@ defaults:
     check_minor: true
     check_major: true
     check_digest: true
+    resolve_floating: false
   severity:
     patch: attention
     minor: attention

@@ -74,3 +74,25 @@ redacted adapter failures and does not replace image results. Diagnostic logs ar
 to stderr. The default stdout is always a complete JSON document; `--format table` is an
 explicit human-readable view. File mode creates parent directories and replaces reports
 atomically. Stdout has no progress banners. Use `output.pretty: false` for compact JSON.
+
+## Display versions and floating-tag evidence
+
+New optional fields in schema v1 preserve compatibility with earlier reports:
+
+- `display.current_version`: the resolved versioned tag when available, otherwise the
+  configured tag. `output.hide_variants` removes recognized distribution prefixes/suffixes
+  here without changing raw `current_version` or registry policy.
+- `display.configured_tag`: the original alias/tag for presentation under the same setting.
+- `display.updates`: presentation forms of category candidates; digest values are unchanged.
+- `resolved_tag` and `resolved_version`: a versioned alias with the same observed complete
+  manifest/index digest, and its normalized numeric version; null without a verified match.
+- `resolution`: null when lookup is disabled or inapplicable; otherwise its status is
+  resolved/unknown/ambiguous/error, with source `matching_manifest_digest`, matching tag
+  names, tag/version, probe count and diagnostic reason. Probe count is null when a request
+  failure interrupts the lookup. Evidence covers the bounded set of probed tags.
+
+The table shows a resolved current value with the configured alias in brackets. JSON retains
+all original values and includes ignored services even when `output.hide_skipped` hides table
+rows. Unknown version resolution is separate from digest-check health: a successful digest
+observation can have an unknown numbered version. A failed resolution request is a registry
+error and cannot claim a successful check. None of these fields describes the running image.

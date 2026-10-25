@@ -20,7 +20,13 @@ class ConfigError(ValueError):
 DEFAULTS: dict[str, Any] = {
     "version": 1,
     "sources": {"quadlet_dirs": [], "images": [], "allow_short_names": False},
-    "output": {"format": "json", "path": None, "pretty": True},
+    "output": {
+        "format": "json",
+        "path": None,
+        "pretty": True,
+        "hide_variants": False,
+        "hide_skipped": False,
+    },
     "registries": {
         "timeout": 10,
         "retries": 3,
@@ -30,6 +36,7 @@ DEFAULTS: dict[str, Any] = {
         "max_tags": 100000,
         "max_response_bytes": 8388608,
         "deadline": 120,
+        "max_resolution_candidates": 20,
         "credentials": {},
     },
     "defaults": {
@@ -42,6 +49,7 @@ DEFAULTS: dict[str, Any] = {
             "check_major": True,
             "check_digest": True,
             "monitor_immutable": False,
+            "resolve_floating": False,
             "ignore_versions": [],
             "acknowledge": [],
         },
@@ -186,7 +194,14 @@ def validate_policy(policy: Any, path: str) -> None:
             raise ConfigError(f"{path}.version.{key} must be an integer from 0 to 3")
     updates = policy.get("updates", {})
     mapping(updates, UPDATE_KEYS, f"{path}.updates")
-    for key in ("check_patch", "check_minor", "check_major", "check_digest", "monitor_immutable"):
+    for key in (
+        "check_patch",
+        "check_minor",
+        "check_major",
+        "check_digest",
+        "monitor_immutable",
+        "resolve_floating",
+    ):
         if key in updates and type(updates[key]) is not bool:
             raise ConfigError(f"{path}.updates.{key} must be boolean")
     if "ignore_versions" in updates:
@@ -254,6 +269,9 @@ def validate(config: dict) -> None:
             raise ConfigError("Explicit image IDs must be unique")
         image_ids.add(item["id"])
     output = config["output"]
+    for key in ("hide_variants", "hide_skipped"):
+        if type(output[key]) is not bool:
+            raise ConfigError(f"output.{key} must be boolean")
     if (
         not isinstance(output["format"], str)
         or output["format"] not in {"json", "table"}
@@ -273,6 +291,7 @@ def validate(config: dict) -> None:
         ("max_pages", 1, 1000),
         ("max_tags", 1, 1000000),
         ("max_response_bytes", 1024, 33554432),
+        ("max_resolution_candidates", 1, 100),
     ):
         if (
             type(registry[key]) not in (int, float)
@@ -429,7 +448,7 @@ def policy_for(config: dict, *, quadlet: str | None, repository: str, source: st
             )
     for _, _, rule in sorted(matching, key=lambda v: (v[0], v[1])):
         policy = merge(policy, {k: v for k, v in rule.items() if k != "match"})
-    return policy
+    return merge(policy, config.get("_cli_policy", {}))
 
 
 def snoozed(until: Any, now: datetime) -> bool:

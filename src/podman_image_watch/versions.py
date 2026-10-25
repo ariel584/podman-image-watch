@@ -24,6 +24,17 @@ class Parsed:
     prerelease: bool
 
 
+def display_tag(tag: str | None, options: dict, hide_variants: bool) -> str | None:
+    """Presentation only: never alter tags used for queries or candidate matching."""
+    if tag is None or not hide_variants:
+        return tag
+    parsed = parse(tag, options)
+    if parsed:
+        return str(parsed.version)
+    floating = FLOATING.fullmatch(tag)
+    return floating[1] if floating else tag
+
+
 def parse(tag: str, options: dict) -> Parsed | None:
     original = tag
     prefix, suffix = options.get("prefix"), options.get("suffix")

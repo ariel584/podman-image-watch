@@ -313,17 +313,17 @@ class RegistryClient:
                 return result
         raise RegistryError("Registry pagination limit exceeded; results are incomplete")
 
-    def manifest(self, ref: ImageReference) -> dict:
+    def manifest(self, ref: ImageReference, *, deadline: float | None = None) -> dict:
         target = ref.digest or ref.tag or "latest"
         return self._deduplicated(
-            f"manifest:{ref.repository}@{target}", lambda: self._manifest(ref, target)
+            f"manifest:{ref.repository}@{target}", lambda: self._manifest(ref, target, deadline)
         )
 
-    def _manifest(self, ref: ImageReference, target: str) -> dict:
+    def _manifest(self, ref: ImageReference, target: str, deadline: float | None = None) -> dict:
         response = self._get(
             ref,
             self._base(ref) + "/manifests/" + quote(target, safe=":"),
-            time.monotonic() + self.config["deadline"],
+            deadline if deadline is not None else time.monotonic() + self.config["deadline"],
         )
         payload = self._json(response)
         if payload.get("schemaVersion") != 2 or not (
