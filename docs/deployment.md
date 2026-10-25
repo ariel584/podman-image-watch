@@ -56,7 +56,7 @@ sudo /opt/podman-image-watch/bin/python -m pip install .
 sudo useradd --system --user-group --no-create-home --home-dir /var/lib/podman-image-watch --shell /sbin/nologin podman-image-watch
 sudo install -d -m 0750 -o podman-image-watch -g podman-image-watch /var/lib/podman-image-watch
 sudo install -d -m 0755 /etc/podman-image-watch
-sudo install -m 0644 examples/config-server.yaml /etc/podman-image-watch/config.yaml
+sudo install -m 0644 examples/config.yaml /etc/podman-image-watch/config.yaml
 ```
 
 These account/configuration commands are for a first installation. An existing installation

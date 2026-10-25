@@ -2,8 +2,10 @@
 import json
 import re
 from pathlib import Path
+from uuid import RFC_4122, UUID
 
 import jsonschema
+import pytest
 import yaml
 from jsonpath_ng.ext import parse
 from test_checker import FakeRegistry
@@ -90,6 +92,9 @@ def test_template_structure_uuid_dependencies_and_preprocessing():
         if isinstance(value, dict):
             if "uuid" in value:
                 assert re.fullmatch("[a-f0-9]{32}", value["uuid"])
+                parsed_uuid = UUID(hex=value["uuid"])
+                assert parsed_uuid.version == 4, f"Zabbix requires UUIDv4: {value['uuid']}"
+                assert parsed_uuid.variant == RFC_4122
                 uuids.append(value["uuid"])
             for child in value.values():
                 collect(child)
@@ -101,7 +106,7 @@ def test_template_structure_uuid_dependencies_and_preprocessing():
     assert len(uuids) == len(set(uuids))
 
 
-def test_template_generator_matches_committed_artifact():
+def test_template_generator_matches_committed_artifact(monkeypatch):
     import importlib.util
 
     spec = importlib.util.spec_from_file_location(
@@ -109,6 +114,8 @@ def test_template_generator_matches_committed_artifact():
     )
     module = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(module)
+    # Existing entities must reuse their checked-in UUIDv4 values on every regeneration.
+    monkeypatch.setattr(module, "uuid4", lambda: pytest.fail("Missing persisted Zabbix UUID"))
     assert module.generate() == yaml.safe_load(
         (ROOT / "examples/zabbix/template_podman_image_watch.yaml").read_text()
     )

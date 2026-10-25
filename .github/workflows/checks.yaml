@@ -19,6 +19,6 @@ jobs:
       - run: python -m ruff check src tests tools
       - run: python -m ruff format --check src tests tools
       - run: python -m mypy src
-      - run: python tools/generate_zabbix_template.py && git diff --exit-code examples/zabbix
+      - run: python tools/generate_zabbix_template.py && git diff --exit-code examples/zabbix tools/zabbix_uuids.json
       - run: python -m build
       - run: python -m twine check dist/*

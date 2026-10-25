@@ -7,6 +7,18 @@ to a host with Zabbix Agent 2. No sender, HTTP endpoint or scanner-per-item exec
 The agent reads an existing JSON file. Native notification delivery is optional and normally
 disabled when Zabbix manages alerting.
 
+If import reports `UUIDv4 is expected`, replace the old template export with the current
+file and retry. Early exports incorrectly used UUIDv5. Zabbix requires 32-character hexadecimal
+UUIDv4 values for these entities. The generator now uses UUIDv4 and retains each entity's
+ID in [tools/zabbix_uuids.json](../tools/zabbix_uuids.json). Commit that registry together with
+the generated YAML; do not delete or recreate it when updating the template. Service IDs
+inside scan reports are a separate identity and do not change with this correction.
+
+After publishing/pulling the corrected repository, import
+`examples/zabbix/template_podman_image_watch.yaml` again. Reinstalling the Python scanner
+or restarting containers is not required for this template-only correction. The generator
+is for development; normal installations import the included YAML directly.
+
 Follow [deployment.md](deployment.md) to install the scanner, configure its Quadlet sources,
 and run the oneshot service. Verify that `/var/lib/podman-image-watch/report.json` exists
 and that the agent account can traverse the directory and read the file. The systemd example

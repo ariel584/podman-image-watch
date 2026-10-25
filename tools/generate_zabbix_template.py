@@ -1,17 +1,29 @@
 # SPDX-License-Identifier: GPL-3.0-or-later
 """Regenerate the Zabbix 7.0 export using stable UUIDs. Development use only."""
 
+import json
 from pathlib import Path
-from uuid import NAMESPACE_URL, uuid5
+from uuid import RFC_4122, UUID, uuid4
 
 import yaml
 
 TEMPLATE = "Podman Image Watch by Zabbix agent"
 MASTER = 'vfs.file.contents["{$PIW.REPORT_PATH}"]'
+UUIDS_PATH = Path(__file__).with_name("zabbix_uuids.json")
+UUIDS = json.loads(UUIDS_PATH.read_text(encoding="utf-8"))["uuids"] if UUIDS_PATH.exists() else {}
+
+for key, value in UUIDS.items():
+    parsed = UUID(hex=value)
+    if parsed.version != 4 or parsed.variant != RFC_4122 or value != parsed.hex:
+        raise ValueError(f"Invalid Zabbix UUIDv4 registry entry: {key}")
+if len(set(UUIDS.values())) != len(UUIDS):
+    raise ValueError("Duplicate entries in the Zabbix UUID registry")
 
 
 def uid(key):
-    return uuid5(NAMESPACE_URL, "https://podman-image-watch.local/zabbix/" + key).hex
+    if key not in UUIDS:
+        UUIDS[key] = uuid4().hex
+    return UUIDS[key]
 
 
 def dependent(key, name, path, master=MASTER, value_type="UNSIGNED"):
@@ -200,8 +212,18 @@ if __name__ == "__main__":
     target = (
         Path(__file__).resolve().parents[1] / "examples/zabbix/template_podman_image_watch.yaml"
     )
+    export = generate()
+    UUIDS_PATH.write_text(
+        json.dumps(
+            {"$comment": "SPDX-License-Identifier: GPL-3.0-or-later", "uuids": UUIDS},
+            indent=2,
+            sort_keys=True,
+        )
+        + "\n",
+        encoding="utf-8",
+    )
     target.write_text(
         "# SPDX-License-Identifier: GPL-3.0-or-later\n"
-        + yaml.safe_dump(generate(), sort_keys=False, allow_unicode=True),
+        + yaml.safe_dump(export, sort_keys=False, allow_unicode=True),
         encoding="utf-8",
     )
