@@ -180,6 +180,11 @@ sudo -u zabbix head -c 200 /var/lib/podman-image-watch/report.json
 New report files inherit the service's primary group, so this access survives atomic
 replacements. The private 0700 state directory remains inaccessible to the agent.
 Follow [zabbix.md](zabbix.md) to import the template, set the report macro and verify discovery.
+Before linking the supplied passive-agent template to a host, add an **Agent** interface
+under Data collection → Hosts → your host → Interfaces. Point it at the agent's reachable
+IP/DNS and listening port (normally 10050). An existing report file does not replace this
+interface requirement. For an active-only agent, see the master-item configuration in
+[zabbix.md](zabbix.md).
 
 ## Updating after future pulls
 

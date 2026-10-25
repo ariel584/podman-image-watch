@@ -7,6 +7,65 @@ to a host with Zabbix Agent 2. No sender, HTTP endpoint or scanner-per-item exec
 The agent reads an existing JSON file. Native notification delivery is optional and normally
 disabled when Zabbix manages alerting.
 
+**Both passive and active collection require a running Zabbix agent that can read the report.**
+Adding an Agent interface in the UI only records a connection endpoint; it does not install
+or start an agent on the server. An active agent and an agent interface are different things.
+The included template does not provide collection without an agent. An existing file alone
+is not sufficient for a remote Zabbix server to read it.
+
+A Podman deployment containing only **Zabbix server + web** does not include an agent.
+The server normally listens on TCP 10051; passive agents normally listen on TCP 10050.
+Pointing an Agent interface at the server's 10051 port does not make agent item keys work.
+Existing server-health items may use **Zabbix internal** checks, which gather predefined
+server/proxy statistics without an agent. Confirm this by inspecting the Type of a working
+item; it does not imply that arbitrary host files are readable through that collection type.
+
+For an installation that must remain without an agent, collection needs a different master
+item. A Zabbix **External check** can read a report through a helper running in the server
+container, provided the report directory and helper are mounted read-only and the container
+process can read them. Mount the directory rather than the single report file so atomic
+report replacements remain visible. Alternatively, an **HTTP agent** item can retrieve JSON
+from an existing, appropriately protected web endpoint. Neither variant is supplied by the
+current agent template; changing only its interface or port cannot convert its collection
+method. No new collection path should be assumed until it is configured and verified.
+
+References: [Zabbix default ports](https://www.zabbix.com/documentation/7.0/en/manual/installation/requirements),
+[internal checks](https://www.zabbix.com/documentation/7.0/en/manual/config/items/itemtypes/internal),
+[external checks](https://www.zabbix.com/documentation/7.0/en/manual/config/items/itemtypes/external),
+[HTTP collection](https://www.zabbix.com/documentation/7.0/en/manual/config/items/itemtypes/http).
+
+The supplied master item uses **Zabbix agent (passive)** collection. Before linking the
+template, open Data collection → Hosts → your host → Interfaces and add an **Agent**
+interface with the IP/DNS address and listening port of the agent that can read the report
+(normally port 10050). Use an address reachable from the monitoring Zabbix server or proxy.
+Running Agent 2 on the machine does not automatically create this interface in the UI.
+
+If linking fails with `a host interface of type "Agent" is required`, the host has no
+suitable interface for the passive master item. This is checked before file access; a
+correct report path and an existing file cannot resolve it. Add the Agent interface and
+link the template again. Then verify agent connectivity and file permissions.
+
+If an added interface cannot be removed, a host item still references it. The inherited
+**Image Watch: JSON report** item is one such consumer while it remains passive. For an
+existing active-agent installation, change that item's type in the template to active,
+save it, and then remove the interface once no other items reference it. Check other linked
+templates or directly created passive items if removal remains unavailable. Disabling an
+item does not remove its interface association. Avoid `Unlink and clear` merely to remove
+an interface: that action removes the inherited entities rather than preserving them.
+
+For hosts intentionally monitored only by active checks, edit the template's **Image Watch:
+JSON report** item and change Type to **Zabbix agent (active)** before linking it. The
+dependent items and discovery remain unchanged. Configure the agent's `ServerActive` with
+the appropriate server/proxy address and its `Hostname` to match the host's technical name
+in Zabbix. An active master item does not require a passive Agent interface. Changing the
+shared template's item type affects every host linked to it; use a cloned template when
+both active and passive installations must coexist.
+
+The report path is local to the **agent's** filesystem. A containerized agent needs the
+report directory mounted where `{$PIW.REPORT_PATH}` points. If the server/proxy is in a
+container and the agent is on the host, `127.0.0.1` points inside that container's network
+namespace unless networking is shared; use a reachable host address for passive checks.
+
 If import reports `UUIDv4 is expected`, replace the old template export with the current
 file and retry. Early exports incorrectly used UUIDv5. Zabbix requires 32-character hexadecimal
 UUIDv4 values for these entities. The generator now uses UUIDv4 and retains each entity's
