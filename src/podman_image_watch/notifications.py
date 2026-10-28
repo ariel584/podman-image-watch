@@ -4,6 +4,7 @@
 from __future__ import annotations
 
 import fnmatch
+import logging
 import os
 import smtplib
 import socket
@@ -15,6 +16,8 @@ from html import escape
 import httpx
 
 from .registry import RegistryError, https_url
+
+LOG = logging.getLogger(__name__)
 
 
 def snapshot(report: dict, config: dict) -> dict:
@@ -244,6 +247,7 @@ def delivery_error(adapter: str, error: Exception) -> str:
 
 def notify(report: dict, state: dict, config: dict, *, disabled: bool = False) -> None:
     if disabled or not config["enabled"]:
+        LOG.debug("Notifications disabled%s", " by --no-notify" if disabled else " in configuration")
         return
     states = state.setdefault("notifications", {})
     errors = []
@@ -263,6 +267,7 @@ def notify(report: dict, state: dict, config: dict, *, disabled: bool = False) -
                 e for e in events if e["event"] in {"resolved_update", "scan_recovered"}
             ]
         if not events:
+            LOG.debug("%s notification skipped: no eligible changes", adapter)
             states[adapter] = current.copy()
             continue
         payload = {
@@ -273,14 +278,17 @@ def notify(report: dict, state: dict, config: dict, *, disabled: bool = False) -
         }
         for attempt in range(config["retries"] + 1):
             try:
+                LOG.debug("%s notification: sending %d events (attempt %d)", adapter, len(events), attempt + 1)
                 send(config[adapter], payload, config["timeout"])
                 states[adapter] = current.copy()
                 sent = True
+                LOG.debug("%s notification accepted for delivery", adapter)
                 break
             except (httpx.HTTPError, smtplib.SMTPException, OSError, ValueError, RegistryError) as exc:
                 if attempt == config["retries"]:
                     errors.append(delivery_error(adapter, exc))
                 else:
+                    LOG.debug("%s; retrying", delivery_error(adapter, exc))
                     time.sleep(min(2**attempt, 8))
     report["notifications"] = {
         "status": "error" if errors else "sent" if sent else "unchanged",

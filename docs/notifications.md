@@ -76,6 +76,11 @@ File-mode reports are written before notification delivery, then updated with no
 status. Delivery errors preserve results, appear under `notifications.errors`, and produce
 exit 1 and partial health. Notification state is committed only on success. Image scan
 success timestamps describe registry/discovery success, independently of delivery.
+Use `--verbose` to see whether an adapter skipped delivery because there were no eligible
+changes, attempted delivery, or had its message accepted by the server. SMTP acceptance does
+not guarantee final delivery to the mailbox. To test delivery for current eligible updates,
+temporarily set `on_change_only: false` for a scan and restore it afterward; no message is
+sent if there are no eligible updates or failures.
 
 When Zabbix handles operational alerts, leave built-in notifications disabled unless separate
 recipients/channels are intentional. Both systems consuming the same update policy can

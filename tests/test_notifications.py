@@ -1,4 +1,5 @@
 # SPDX-License-Identifier: GPL-3.0-or-later
+import logging
 import smtplib
 import ssl
 from copy import deepcopy
@@ -39,6 +40,18 @@ def test_changes_new_unchanged_candidate_resolved(config, notification_setup):
     config["sources"]["images"][0]["image"] = "docker.io/example/app:2.0.0"
     notify(scan(config, state, registry), state, settings)
     assert {e["event"] for e in delivered[-1]["events"]} == {"resolved_update"}
+
+
+def test_delivery_debug_log_distinguishes_sent_from_unchanged(config, notification_setup, caplog):
+    settings, delivered = notification_setup
+    state = {}
+    report = scan(config, state, FakeRegistry())
+    with caplog.at_level(logging.DEBUG, logger="podman_image_watch.notifications"):
+        notify(report, state, settings)
+        notify(report, state, settings)
+    assert len(delivered) == 1
+    assert "webhook notification accepted for delivery" in caplog.text
+    assert "webhook notification skipped: no eligible changes" in caplog.text
 
 
 def test_snooze_expiration_and_ack_scope(config, notification_setup):
