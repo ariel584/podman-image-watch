@@ -4,13 +4,13 @@
 from __future__ import annotations
 
 import fnmatch
-import json
 import os
 import smtplib
 import socket
 import ssl
 import time
 from email.message import EmailMessage
+from html import escape
 
 import httpx
 
@@ -147,20 +147,70 @@ def webhook(config: dict, payload: dict, timeout: float) -> None:
                 raise ValueError("Webhook delivery failed")
 
 
+def email_content(payload: dict, hostname: str) -> tuple[str, str]:
+    labels = {
+        "new_update": "New update",
+        "candidate_changed": "Update changed",
+        "resolved_update": "Update resolved",
+        "scan_failed": "Scan failed",
+        "scan_recovered": "Scan recovered",
+    }
+    lines = [f"Host: {hostname}", f"Checked at: {payload['generated_at']}", "", "Changes:"]
+    rows = []
+    for event in payload["events"]:
+        name = str(event.get("display_name", event.get("service_id", "Unknown")))
+        label = labels.get(event["event"], event["event"])
+        details = []
+        if event.get("type"):
+            details.append(str(event["type"]))
+        if event.get("version"):
+            details.append(str(event["version"]))
+        if event.get("reason"):
+            reason = event["reason"]
+            details.append("; ".join(map(str, reason)) if isinstance(reason, list) else str(reason))
+        detail = " · ".join(details)
+        lines.append(f"- {name}: {label}" + (f" — {detail}" if detail else ""))
+        cells = (name, label, detail or "—")
+        rows.append("<tr>" + "".join(f'<td style="padding:10px;border-bottom:1px solid #e2e8f0;vertical-align:top">{escape(cell)}</td>' for cell in cells) + "</tr>")
+    html = (
+        '<html><body style="margin:0;padding:24px;background:#f1f5f9;font-family:Arial,sans-serif;color:#1e293b">'
+        '<div style="max-width:720px;margin:auto;background:#fff;border-radius:8px;padding:24px">'
+        '<h1 style="font-size:22px;margin:0 0 16px">Podman Image Watch</h1>'
+        f'<p><strong>Host:</strong> {escape(hostname)}<br>'
+        f'<strong>Checked at:</strong> {escape(str(payload["generated_at"]))}</p>'
+        '<h2 style="font-size:17px;margin-top:24px">Changes</h2>'
+        '<table style="width:100%;border-collapse:collapse;text-align:left;font-size:14px">'
+        '<thead><tr><th style="padding:10px">Service</th><th style="padding:10px">Event</th>'
+        '<th style="padding:10px">Details</th></tr></thead><tbody>'
+        + "".join(rows) + '</tbody></table></div></body></html>'
+    )
+    return "\n".join(lines), html
+
+
 def smtp(config: dict, payload: dict, timeout: float) -> None:
+    hostname = socket.gethostname()
     message = EmailMessage()
     message["From"] = config["from"]
     message["To"] = ", ".join(config["to"])
-    message["Subject"] = "Podman Image Watch: image update and scan changes"
-    message.set_content(json.dumps(payload, indent=2, ensure_ascii=False))
-    with smtplib.SMTP(config["host"], config["port"], timeout=timeout) as server:
-        if config["starttls"]:
-            server.starttls(context=ssl.create_default_context())
-        if config["username_env"]:
-            server.login(required_env(config["username_env"]), required_env(config["password_env"]))
-        refused = server.send_message(message)
-        if refused:
-            raise smtplib.SMTPRecipientsRefused(refused)
+    message["Subject"] = f"Podman Image Watch [{hostname}]: image and scan changes"
+    plain, html = email_content(payload, hostname)
+    message.set_content(plain)
+    message.add_alternative(html, subtype="html")
+    accepted = False
+    try:
+        with smtplib.SMTP(config["host"], config["port"], timeout=timeout) as server:
+            if config["starttls"]:
+                server.starttls(context=ssl.create_default_context())
+            if config["username_env"]:
+                server.login(required_env(config["username_env"]), required_env(config["password_env"]))
+            refused = server.send_message(message)
+            if refused:
+                raise smtplib.SMTPRecipientsRefused(refused)
+            accepted = True
+    except (smtplib.SMTPException, OSError):
+        # A failed QUIT after acceptance must not trigger another delivery.
+        if not accepted:
+            raise
 
 
 def delivery_error(adapter: str, error: Exception) -> str:

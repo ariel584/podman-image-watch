@@ -46,8 +46,9 @@ names using globs. Error delivery is controlled independently by `include_errors
 `notify: false` in a service rule excludes that service from adapter notifications.
 Acknowledged and snoozed events remain in reports but are excluded from delivery.
 
-The webhook body and email text contain `schema_version`, `tool`, `generated_at` and an
-`events` list. Events contain `service_id`, `display_name` and an event name:
+The webhook body contains `schema_version`, `tool`, `generated_at` and an `events` list.
+The email includes the local hostname, scan time and a readable list of changes, with HTML
+and plain-text alternatives. Webhook events contain `service_id`, `display_name` and an event name:
 
 | Event | Meaning |
 |---|---|
@@ -67,6 +68,8 @@ runs; successful adapters do not resend merely because another adapter failed. D
 retries are bounded to 0–5, with exponential waits capped at eight seconds. Timeouts apply
 to each delivery attempt. Webhooks and SMTP have at-least-once delivery semantics: a process
 crash after remote acceptance but before state persistence can lead to a duplicate.
+An interrupted SMTP connection after acceptance but before the server's reply, or a partial
+recipient rejection followed by a retry, can also lead to duplicates.
 Do not rely on the utility for exactly-once delivery.
 
 File-mode reports are written before notification delivery, then updated with notification

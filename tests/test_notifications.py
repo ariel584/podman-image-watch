@@ -168,7 +168,7 @@ def test_smtp_starttls_and_login(config, monkeypatch):
         to=["admin@example.org"],
         **{"from": "watch@example.org"},
     )
-    smtp(settings, {"events": []}, 1)
+    smtp(settings, {"generated_at": "2026-10-28T18:17:04Z", "events": []}, 1)
     assert calls[1:] == ["tls", "login", "send"]
 
 
@@ -222,4 +222,44 @@ def test_smtp_partial_recipient_refusal_is_failure(config, monkeypatch):
     settings = config["notifications"]["smtp"]
     settings.update(host="smtp.example", to=["admin@example.org"], **{"from": "watch@example.org"})
     with pytest.raises(smtplib.SMTPRecipientsRefused):
-        smtp(settings, {"events": []}, 1)
+        smtp(settings, {"generated_at": "2026-10-28T18:17:04Z", "events": []}, 1)
+
+
+def test_smtp_formats_email_and_does_not_retry_after_quit_failure(config, monkeypatch):
+    sent = []
+
+    class Server:
+        def __init__(self, *args, **kwargs):
+            pass
+
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *args):
+            raise smtplib.SMTPServerDisconnected("QUIT failed")
+
+        def starttls(self, context):
+            pass
+
+        def send_message(self, message):
+            sent.append(message)
+            return {}
+
+    monkeypatch.setattr("podman_image_watch.notifications.smtplib.SMTP", Server)
+    monkeypatch.setattr("podman_image_watch.notifications.socket.gethostname", lambda: "server-1")
+    settings = config["notifications"]
+    settings.update(enabled=True, retries=2)
+    settings["smtp"].update(enabled=True, host="smtp.example", to=["admin@example.org"],
+                            **{"from": "watch@example.org"})
+    report, state = scan(config, {}, FakeRegistry()), {}
+    report["services"][0]["display_name"] = "Grafana <test>"
+    notify(report, state, settings)
+    assert report["notifications"]["status"] == "sent"
+    assert len(sent) == 1
+    assert "server-1" in sent[0]["Subject"]
+    plain = sent[0].get_body(preferencelist=("plain",)).get_content()
+    html = sent[0].get_body(preferencelist=("html",)).get_content()
+    assert "Grafana <test>" in plain and "New update" in plain
+    assert "Grafana &lt;test&gt;" in html and "server-1" in html
+    notify(report, state, settings)
+    assert len(sent) == 1
