@@ -1,4 +1,6 @@
 # SPDX-License-Identifier: GPL-3.0-or-later
+import smtplib
+import ssl
 from copy import deepcopy
 from datetime import UTC, datetime
 
@@ -7,7 +9,7 @@ import pytest
 from test_checker import FakeRegistry
 
 from podman_image_watch.checker import scan
-from podman_image_watch.notifications import notify, smtp, webhook
+from podman_image_watch.notifications import delivery_error, notify, smtp, webhook
 
 
 @pytest.fixture
@@ -171,8 +173,6 @@ def test_smtp_starttls_and_login(config, monkeypatch):
 
 
 def test_smtp_delivery_failure_keeps_report(config, monkeypatch):
-    import smtplib
-
     config["notifications"].update(enabled=True, retries=0)
     config["notifications"]["smtp"]["enabled"] = True
 
@@ -184,3 +184,42 @@ def test_smtp_delivery_failure_keeps_report(config, monkeypatch):
     notify(report, state, config["notifications"])
     assert report["services"][0]["updates"]["patch"]
     assert report["notifications"]["status"] == "error" and "secret" not in str(report)
+
+
+@pytest.mark.parametrize(
+    ("error", "expected"),
+    [
+        (smtplib.SMTPAuthenticationError(535, b"secret"), "authentication rejected"),
+        (ssl.SSLCertVerificationError("secret"), "certificate verification failed"),
+        (TimeoutError("secret"), "timed out"),
+        (smtplib.SMTPRecipientsRefused({"secret": (550, b"secret")}), "recipient rejected"),
+    ],
+)
+def test_smtp_error_diagnostics_do_not_expose_server_response(error, expected):
+    message = delivery_error("smtp", error)
+    assert expected in message
+    assert "secret" not in message
+
+
+def test_smtp_partial_recipient_refusal_is_failure(config, monkeypatch):
+    class Server:
+        def __init__(self, *args, **kwargs):
+            pass
+
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *args):
+            pass
+
+        def starttls(self, context):
+            pass
+
+        def send_message(self, message):
+            return {"rejected@example.org": (550, b"rejected")}
+
+    monkeypatch.setattr("podman_image_watch.notifications.smtplib.SMTP", Server)
+    settings = config["notifications"]["smtp"]
+    settings.update(host="smtp.example", to=["admin@example.org"], **{"from": "watch@example.org"})
+    with pytest.raises(smtplib.SMTPRecipientsRefused):
+        smtp(settings, {"events": []}, 1)

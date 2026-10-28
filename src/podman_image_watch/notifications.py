@@ -7,6 +7,7 @@ import fnmatch
 import json
 import os
 import smtplib
+import socket
 import ssl
 import time
 from email.message import EmailMessage
@@ -121,10 +122,14 @@ def changes(previous: dict, current: dict, report: dict) -> list[dict]:
     return events
 
 
+class MissingNotificationEnvironment(ValueError):
+    pass
+
+
 def required_env(name: str | None) -> str:
     value = os.environ.get(name or "", "")
     if not value:
-        raise ValueError("Notification environment variable is missing")
+        raise MissingNotificationEnvironment("Notification environment variable is missing")
     return value
 
 
@@ -153,7 +158,38 @@ def smtp(config: dict, payload: dict, timeout: float) -> None:
             server.starttls(context=ssl.create_default_context())
         if config["username_env"]:
             server.login(required_env(config["username_env"]), required_env(config["password_env"]))
-        server.send_message(message)
+        refused = server.send_message(message)
+        if refused:
+            raise smtplib.SMTPRecipientsRefused(refused)
+
+
+def delivery_error(adapter: str, error: Exception) -> str:
+    """Describe common failures without exposing server responses or credentials."""
+    if adapter != "smtp":
+        return f"{adapter} notification delivery failed; check configuration and credentials"
+    if isinstance(error, smtplib.SMTPAuthenticationError):
+        detail = "authentication rejected; check username and password"
+    elif isinstance(error, smtplib.SMTPRecipientsRefused):
+        detail = "recipient rejected; check recipient addresses and server policy"
+    elif isinstance(error, smtplib.SMTPSenderRefused):
+        detail = "sender rejected; check the from address and server policy"
+    elif isinstance(error, ssl.SSLCertVerificationError):
+        detail = "TLS certificate verification failed; check the server hostname and CA certificates"
+    elif isinstance(error, ssl.SSLError):
+        detail = "TLS connection failed; check the server, port and TLS mode"
+    elif isinstance(error, smtplib.SMTPNotSupportedError):
+        detail = "server does not support the requested SMTP feature; check STARTTLS and authentication"
+    elif isinstance(error, (TimeoutError, socket.timeout)):
+        detail = "connection timed out; check the server, port and network access"
+    elif isinstance(error, socket.gaierror):
+        detail = "server hostname could not be resolved"
+    elif isinstance(error, MissingNotificationEnvironment):
+        detail = "required notification environment variable is missing"
+    elif isinstance(error, OSError):
+        detail = "connection failed; check the server, port and network access"
+    else:
+        detail = "SMTP server rejected or interrupted delivery; check configuration and credentials"
+    return f"smtp notification delivery failed: {detail}"
 
 
 def notify(report: dict, state: dict, config: dict, *, disabled: bool = False) -> None:
@@ -191,11 +227,9 @@ def notify(report: dict, state: dict, config: dict, *, disabled: bool = False) -
                 states[adapter] = current.copy()
                 sent = True
                 break
-            except (httpx.HTTPError, smtplib.SMTPException, OSError, ValueError, RegistryError):
+            except (httpx.HTTPError, smtplib.SMTPException, OSError, ValueError, RegistryError) as exc:
                 if attempt == config["retries"]:
-                    errors.append(
-                        f"{adapter} notification delivery failed; check configuration and credentials"
-                    )
+                    errors.append(delivery_error(adapter, exc))
                 else:
                     time.sleep(min(2**attempt, 8))
     report["notifications"] = {

@@ -35,6 +35,11 @@ token is sent in Authorization. Neither URLs nor credentials are included in dia
 SMTP uses a validated STARTTLS context by default; username/password must be configured
 together, and credentials require STARTTLS. Unauthenticated SMTP can explicitly disable
 STARTTLS for a trusted local relay. Implicit TLS on port 465 is not implemented.
+For OVHcloud MX Plan in Europe, use `smtp.mail.ovh.net`, port `587` and `starttls: true`,
+with the full email address as the username. Other OVHcloud products may use another host;
+use the server specified for your mailbox. The environment variables must be available to
+the process running the scan, including when it runs as a systemd service or timer.
+Delivery errors identify common failure types without including server responses or credentials.
 
 Empty category/priority/service lists mean no filtering. Services match stable IDs or display
 names using globs. Error delivery is controlled independently by `include_errors`.
