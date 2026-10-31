@@ -19,7 +19,23 @@ Runtime dependencies are PyYAML, httpx and packaging. Source is licensed under
 
 ## Install and run
 
-Requires Python 3.11+. From this checkout:
+Requires Python 3.11+. To install the CLI from GitHub with [pipx](https://pipx.pypa.io/stable/),
+install pipx and Git first, then run:
+
+```sh
+pipx ensurepath
+pipx install --python python3.11 git+https://github.com/ariel584/podman-image-watch.git
+podman-image-watch --version
+```
+
+Open a new terminal after `pipx ensurepath` if the command is not found. Replace `python3.11`
+with another Python 3.11+ executable if needed. This installs from the repository's default
+branch; a specific release tag or branch can be selected by appending `@<ref>` to the Git URL.
+To remove the installation, run `pipx uninstall podman-image-watch`. See the
+[pipx installation guide](https://pipx.pypa.io/stable/how-to/install-pipx.html) for setup.
+
+To install from a local checkout with pipx, run `pipx install --python python3.11 .`.
+Alternatively, use a virtual environment from the checkout:
 
 ```sh
 python3.11 -m venv .venv
@@ -27,8 +43,7 @@ python3.11 -m venv .venv
 .venv/bin/podman-image-watch --quadlet-dir /etc/containers/systemd
 ```
 
-Alternatively, `pipx install .` installs an isolated CLI from the checkout. There is no
-assumption that a release has already been published to PyPI.
+The GitHub installation does not require a PyPI release.
 
 With no output path, the complete pretty-printed JSON report goes to stdout. Diagnostics
 always go to stderr. Updates alone leave exit status 0.
