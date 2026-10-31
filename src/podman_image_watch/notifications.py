@@ -174,18 +174,26 @@ def email_content(payload: dict, hostname: str) -> tuple[str, str]:
         detail = " · ".join(details)
         lines.append(f"- {name}: {label}" + (f" — {detail}" if detail else ""))
         cells = (name, label, detail or "—")
-        rows.append("<tr>" + "".join(f'<td style="padding:10px;border-bottom:1px solid #e2e8f0;vertical-align:top">{escape(cell)}</td>' for cell in cells) + "</tr>")
+        rows.append(
+            "<tr>"
+            + "".join(
+                f'<td style="padding:10px;border-bottom:1px solid #e2e8f0;vertical-align:top">{escape(cell)}</td>'
+                for cell in cells
+            )
+            + "</tr>"
+        )
     html = (
         '<html><body style="margin:0;padding:24px;background:#f1f5f9;font-family:Arial,sans-serif;color:#1e293b">'
         '<div style="max-width:720px;margin:auto;background:#fff;border-radius:8px;padding:24px">'
         '<h1 style="font-size:22px;margin:0 0 16px">Podman Image Watch</h1>'
-        f'<p><strong>Host:</strong> {escape(hostname)}<br>'
-        f'<strong>Checked at:</strong> {escape(str(payload["generated_at"]))}</p>'
+        f"<p><strong>Host:</strong> {escape(hostname)}<br>"
+        f"<strong>Checked at:</strong> {escape(str(payload['generated_at']))}</p>"
         '<h2 style="font-size:17px;margin-top:24px">Changes</h2>'
         '<table style="width:100%;border-collapse:collapse;text-align:left;font-size:14px">'
         '<thead><tr><th style="padding:10px">Service</th><th style="padding:10px">Event</th>'
         '<th style="padding:10px">Details</th></tr></thead><tbody>'
-        + "".join(rows) + '</tbody></table></div></body></html>'
+        + "".join(rows)
+        + "</tbody></table></div></body></html>"
     )
     return "\n".join(lines), html
 
@@ -205,7 +213,9 @@ def smtp(config: dict, payload: dict, timeout: float) -> None:
             if config["starttls"]:
                 server.starttls(context=ssl.create_default_context())
             if config["username_env"]:
-                server.login(required_env(config["username_env"]), required_env(config["password_env"]))
+                server.login(
+                    required_env(config["username_env"]), required_env(config["password_env"])
+                )
             refused = server.send_message(message)
             if refused:
                 raise smtplib.SMTPRecipientsRefused(refused)
@@ -227,11 +237,15 @@ def delivery_error(adapter: str, error: Exception) -> str:
     elif isinstance(error, smtplib.SMTPSenderRefused):
         detail = "sender rejected; check the from address and server policy"
     elif isinstance(error, ssl.SSLCertVerificationError):
-        detail = "TLS certificate verification failed; check the server hostname and CA certificates"
+        detail = (
+            "TLS certificate verification failed; check the server hostname and CA certificates"
+        )
     elif isinstance(error, ssl.SSLError):
         detail = "TLS connection failed; check the server, port and TLS mode"
     elif isinstance(error, smtplib.SMTPNotSupportedError):
-        detail = "server does not support the requested SMTP feature; check STARTTLS and authentication"
+        detail = (
+            "server does not support the requested SMTP feature; check STARTTLS and authentication"
+        )
     elif isinstance(error, (TimeoutError, socket.timeout)):
         detail = "connection timed out; check the server, port and network access"
     elif isinstance(error, socket.gaierror):
@@ -247,7 +261,9 @@ def delivery_error(adapter: str, error: Exception) -> str:
 
 def notify(report: dict, state: dict, config: dict, *, disabled: bool = False) -> None:
     if disabled or not config["enabled"]:
-        LOG.debug("Notifications disabled%s", " by --no-notify" if disabled else " in configuration")
+        LOG.debug(
+            "Notifications disabled%s", " by --no-notify" if disabled else " in configuration"
+        )
         return
     states = state.setdefault("notifications", {})
     errors = []
@@ -278,13 +294,24 @@ def notify(report: dict, state: dict, config: dict, *, disabled: bool = False) -
         }
         for attempt in range(config["retries"] + 1):
             try:
-                LOG.debug("%s notification: sending %d events (attempt %d)", adapter, len(events), attempt + 1)
+                LOG.debug(
+                    "%s notification: sending %d events (attempt %d)",
+                    adapter,
+                    len(events),
+                    attempt + 1,
+                )
                 send(config[adapter], payload, config["timeout"])
                 states[adapter] = current.copy()
                 sent = True
                 LOG.debug("%s notification accepted for delivery", adapter)
                 break
-            except (httpx.HTTPError, smtplib.SMTPException, OSError, ValueError, RegistryError) as exc:
+            except (
+                httpx.HTTPError,
+                smtplib.SMTPException,
+                OSError,
+                ValueError,
+                RegistryError,
+            ) as exc:
                 if attempt == config["retries"]:
                     errors.append(delivery_error(adapter, exc))
                 else:

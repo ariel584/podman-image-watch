@@ -262,8 +262,9 @@ def test_smtp_formats_email_and_does_not_retry_after_quit_failure(config, monkey
     monkeypatch.setattr("podman_image_watch.notifications.socket.gethostname", lambda: "server-1")
     settings = config["notifications"]
     settings.update(enabled=True, retries=2)
-    settings["smtp"].update(enabled=True, host="smtp.example", to=["admin@example.org"],
-                            **{"from": "watch@example.org"})
+    settings["smtp"].update(
+        enabled=True, host="smtp.example", to=["admin@example.org"], **{"from": "watch@example.org"}
+    )
     report, state = scan(config, {}, FakeRegistry()), {}
     report["services"][0]["display_name"] = "Grafana <test>"
     notify(report, state, settings)
