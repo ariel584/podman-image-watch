@@ -5,7 +5,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "podman-image-watch"
-version = "0.1.0"
+version = "1.0.0"
 description = "Read-only OCI image update checks for Podman Quadlets"
 readme = "README.md"
 requires-python = ">=3.11"

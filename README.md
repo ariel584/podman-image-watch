@@ -73,7 +73,7 @@ A report contains these fields (excerpt; synthetic candidates):
 {
   "schema_version": 1,
   "tool": "podman-image-watch",
-  "tool_version": "0.1.0",
+  "tool_version": "1.0.0",
   "generated_at": "2026-10-25T10:00:00Z",
   "scan": {"status": "success", "health": 0},
   "services": [

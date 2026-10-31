@@ -16,6 +16,7 @@ from urllib.parse import parse_qsl, quote, urlencode, urljoin, urlsplit, urlunsp
 
 import httpx
 
+from . import __version__
 from .config import duration
 from .quadlet import ImageReference
 
@@ -89,7 +90,7 @@ class RegistryClient:
                 max_keepalive_connections=config["max_parallel_requests"],
             ),
             transport=transport,
-            headers={"User-Agent": "podman-image-watch/0.1.0"},
+            headers={"User-Agent": f"podman-image-watch/{__version__}"},
         )
         self._locks: dict[str, threading.Lock] = {}
         self._lock = threading.Lock()
